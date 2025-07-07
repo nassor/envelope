@@ -1,0 +1,417 @@
+package envelope
+
+import (
+	"bytes"
+	"crypto/rand"
+	"errors"
+	"testing"
+	"time"
+)
+
+func TestEnvelope_Sign(t *testing.T) {
+	key := make([]byte, 32)
+	rand.Read(key)
+
+	t.Run("Sign", func(t *testing.T) {
+		e := New([]byte("test data"), 0)
+		err := e.Sign(key)
+		if err != nil {
+			t.Errorf("Sign() error = %v, wantErr nil", err)
+		}
+		if e.Signature == nil {
+			t.Errorf("Sign() signature is nil, want not nil")
+		}
+		if e.SecurityFlags&FlagSigned == 0 {
+			t.Errorf("Sign() FlagSigned was not set")
+		}
+	})
+}
+
+func TestEnvelope_Verify(t *testing.T) {
+	key := make([]byte, 32)
+	rand.Read(key)
+
+	baseEnvelope := &Envelope{
+		ID:               []byte("test-id"),
+		Data:             []byte("test data"),
+		SecurityFlags:    FlagSigned,
+		Metadata:         map[string]string{"key": "value"},
+		TelemetryContext: map[string]string{"source": "test"},
+		CreatedAt:        time.Now().UTC(),
+		Version:          CurrentVersion,
+	}
+
+	t.Run("NotSigned", func(t *testing.T) {
+		e := &Envelope{
+			Data:          []byte("test data"),
+			SecurityFlags: 0,
+			Signature:     nil,
+		}
+		err := e.Verify(key)
+		if err != nil {
+			t.Errorf("Verify() error = %v, wantErr nil", err)
+		}
+
+		e.Signature = []byte("invalid")
+		err = e.Verify(key)
+		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
+			t.Errorf("Verify() error = %v, want %v", err, ErrEnvelopeHasBeenTampered)
+		}
+	})
+
+	t.Run("ValidSignature", func(t *testing.T) {
+		e := baseEnvelope.clone()
+		e.Sign(key)
+		err := e.Verify(key)
+		if err != nil {
+			t.Errorf("Verify() error = %v, wantErr nil", err)
+		}
+	})
+
+	t.Run("InvalidSignature", func(t *testing.T) {
+		e := baseEnvelope.clone()
+		e.Sign(key) // Sign first to set the flag
+		e.Signature = []byte("invalid")
+		err := e.Verify(key)
+		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
+			t.Errorf("Verify() error = %v, want %v", err, ErrEnvelopeHasBeenTampered)
+		}
+	})
+
+	t.Run("TamperedData", func(t *testing.T) {
+		e := baseEnvelope.clone()
+		e.Sign(key)
+		e.Data = []byte("tampered")
+		err := e.Verify(key)
+		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
+			t.Errorf("Verify() error = %v, want %v for tampered data", err, ErrEnvelopeHasBeenTampered)
+		}
+	})
+
+	t.Run("TamperedID", func(t *testing.T) {
+		e := baseEnvelope.clone()
+		e.Sign(key)
+		e.ID = []byte("tampered")
+		err := e.Verify(key)
+		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
+			t.Errorf("Verify() error = %v, want %v for tampered ID", err, ErrEnvelopeHasBeenTampered)
+		}
+	})
+
+	t.Run("TamperedMetadata", func(t *testing.T) {
+		e := baseEnvelope.clone()
+		e.Sign(key)
+		e.Metadata["key"] = "tampered"
+		err := e.Verify(key)
+		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
+			t.Errorf("Verify() error = %v, want %v for tampered metadata", err, ErrEnvelopeHasBeenTampered)
+		}
+	})
+
+	t.Run("TamperedCreatedAt", func(t *testing.T) {
+		e := baseEnvelope.clone()
+		e.Sign(key)
+		e.CreatedAt = e.CreatedAt.Add(time.Second)
+		err := e.Verify(key)
+		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
+			t.Errorf("Verify() error = %v, want %v for tampered CreatedAt", err, ErrEnvelopeHasBeenTampered)
+		}
+	})
+
+	t.Run("TamperedTelemetryContext", func(t *testing.T) {
+		e := baseEnvelope.clone()
+		e.Sign(key)
+		e.TelemetryContext["source"] = "tampered"
+		err := e.Verify(key)
+		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
+			t.Errorf("Verify() error = %v, want %v for tampered TelemetryContext", err, ErrEnvelopeHasBeenTampered)
+		}
+	})
+
+	t.Run("TamperedVersion", func(t *testing.T) {
+		e := baseEnvelope.clone()
+		e.Sign(key)
+		e.Version = 2
+		err := e.Verify(key)
+		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
+			t.Errorf("Verify() error = %v, want %v for tampered Version", err, ErrEnvelopeHasBeenTampered)
+		}
+	})
+}
+
+func TestEnvelope_EncryptDecrypt(t *testing.T) {
+	key := make([]byte, 32)
+	rand.Read(key)
+	originalData := []byte("very secret data")
+
+	t.Run("Encrypt and Decrypt", func(t *testing.T) {
+		e := New(bytes.Clone(originalData), 0)
+
+		err := e.Encrypt(key)
+		if err != nil {
+			t.Fatalf("Encrypt() error = %v, wantErr nil", err)
+		}
+		if bytes.Equal(e.Data, originalData) {
+			t.Fatalf("Encrypt() data was not modified")
+		}
+		if e.SecurityFlags&FlagEncrypted == 0 {
+			t.Fatalf("Encrypt() FlagEncrypted was not set")
+		}
+
+		err = e.Decrypt(key)
+		if err != nil {
+			t.Fatalf("Decrypt() error = %v, wantErr nil", err)
+		}
+		if !bytes.Equal(e.Data, originalData) {
+			t.Errorf("Decrypt() got %v, want %v", e.Data, originalData)
+		}
+	})
+
+	t.Run("DecryptNotEncrypted", func(t *testing.T) {
+		e := New(bytes.Clone(originalData), 0)
+		err := e.Decrypt(key)
+		if err != nil {
+			t.Errorf("Decrypt() error = %v, wantErr nil", err)
+		}
+		if !bytes.Equal(e.Data, originalData) {
+			t.Errorf("Decrypt() data was modified, got %v, want %v", e.Data, originalData)
+		}
+	})
+
+	t.Run("DecryptTooShort", func(t *testing.T) {
+		e := New([]byte("short"), 0)
+		e.SecurityFlags |= FlagEncrypted // Manually set for this test case
+		err := e.Decrypt(key)
+		if !errors.Is(err, ErrCiphertextTooShort) {
+			t.Errorf("Decrypt() error = %v, want %v", err, ErrCiphertextTooShort)
+		}
+	})
+
+	t.Run("DecryptInvalidNonce", func(t *testing.T) {
+		e := New(make([]byte, 24), 0)    // AES-GCM nonce size is 12, so this is enough
+		e.SecurityFlags |= FlagEncrypted // Manually set for this test case
+		err := e.Decrypt(key)
+		if err == nil {
+			t.Errorf("Decrypt() error = nil, wantErr")
+		}
+	})
+
+	t.Run("EncryptLargeData", func(t *testing.T) {
+		key := make([]byte, 32)
+		rand.Read(key)
+
+		// Generate 4MB of random data
+		const dataSize = 4*1024*1024 + 3 // 4MB + 3 bytes for nonce
+		originalData := make([]byte, dataSize)
+		_, err := rand.Read(originalData)
+		if err != nil {
+			t.Fatalf("Failed to generate random data: %v", err)
+		}
+
+		e := New(bytes.Clone(originalData), 0)
+
+		err = e.Encrypt(key)
+		if err != nil {
+			t.Fatalf("Encrypt() error = %v, wantErr nil", err)
+		}
+
+		if bytes.Equal(e.Data, originalData) {
+			t.Fatalf("Encrypt() data was not modified")
+		}
+
+		err = e.Decrypt(key)
+		if err != nil {
+			t.Fatalf("Decrypt() error = %v, wantErr nil", err)
+		}
+
+		if !bytes.Equal(e.Data, originalData) {
+			t.Errorf("Decrypt() got different data than original")
+		}
+	})
+}
+
+func TestCombined(t *testing.T) {
+	key := make([]byte, 32)
+	rand.Read(key)
+	originalData := []byte("very secret data")
+
+	e := New(bytes.Clone(originalData), 0)
+
+	err := e.Sign(key)
+	if err != nil {
+		t.Fatalf("Sign() error = %v", err)
+	}
+
+	err = e.Encrypt(key)
+	if err != nil {
+		t.Fatalf("Encrypt() error = %v", err)
+	}
+
+	if bytes.Equal(e.Data, originalData) {
+		t.Fatalf("Encrypt() did not change data")
+	}
+
+	// Tamper with data
+	originalEncryptedData := bytes.Clone(e.Data)
+	e.Data[0] ^= 0xff
+
+	err = e.Decrypt(key)
+	if err == nil {
+		t.Fatalf("Decrypt() did not return an error on tampered data")
+	}
+	e.Data = originalEncryptedData // restore
+
+	err = e.Decrypt(key)
+	if err != nil {
+		t.Fatalf("Decrypt() error = %v", err)
+	}
+
+	if !bytes.Equal(e.Data, originalData) {
+		t.Fatalf("data not restored after decryption, got %s, want %s", e.Data, originalData)
+	}
+
+	err = e.Verify(key)
+	if err != nil {
+		t.Fatalf("Verify() error = %v for a valid signature", err)
+	}
+
+	// Tamper with signature
+	e.Signature[0] ^= 0xff
+	err = e.Verify(key)
+	if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
+		t.Fatalf("Verify() error = %v, want %v for an invalid signature", err, ErrEnvelopeHasBeenTampered)
+	}
+}
+
+// Mock for testing error cases
+type errorReader struct{}
+
+func (r errorReader) Read(p []byte) (n int, err error) {
+	return 0, errors.New("forced error")
+}
+
+func TestErrorCases(t *testing.T) {
+	key := make([]byte, 32)
+	rand.Read(key)
+
+	t.Run("EncryptRandError", func(t *testing.T) {
+		originalRandReader := rand.Reader
+		rand.Reader = errorReader{}
+		defer func() { rand.Reader = originalRandReader }()
+
+		e := New([]byte("test"), 0)
+		err := e.Encrypt(key)
+		if err == nil {
+			t.Error("Encrypt() did not return error on rand.Reader failure")
+		}
+	})
+}
+
+func TestEnvelope_MarshalUnmarshalBinary(t *testing.T) {
+	t.Run("SuccessfulRoundTrip", func(t *testing.T) {
+		key := make([]byte, 32)
+		rand.Read(key)
+
+		original := New([]byte("some important data"), 0)
+		original.ID = []byte("test-id-123")
+		original.Metadata = map[string]string{"origin": "test", "user": "alice"}
+		original.TelemetryContext = map[string]string{"traceId": "abc-def"}
+		if err := original.Sign(key); err != nil {
+			t.Fatalf("Failed to sign original envelope: %v", err)
+		}
+		if err := original.Encrypt(key); err != nil {
+			t.Fatalf("Failed to encrypt original envelope: %v", err)
+		}
+
+		// Marshal the original envelope
+		binaryData, err := original.MarshalBinary()
+		if err != nil {
+			t.Fatalf("MarshalBinary() error = %v, wantErr nil", err)
+		}
+		if len(binaryData) == 0 {
+			t.Fatal("MarshalBinary() returned empty data")
+		}
+
+		// Unmarshal into a new envelope
+		restored := &Envelope{}
+		err = restored.UnmarshalBinary(binaryData)
+		if err != nil {
+			t.Fatalf("UnmarshalBinary() error = %v, wantErr nil", err)
+		}
+
+		// We can't use reflect.DeepEqual because the gob-encoded time might have
+		// a monotonic clock component that differs. We compare fields manually.
+		if original.Version != restored.Version {
+			t.Errorf("Version mismatch: got %d, want %d", restored.Version, original.Version)
+		}
+		if !bytes.Equal(original.ID, restored.ID) {
+			t.Errorf("ID mismatch: got %s, want %s", restored.ID, original.ID)
+		}
+		if !bytes.Equal(original.Data, restored.Data) {
+			t.Errorf("Data mismatch: got %x, want %x", restored.Data, original.Data)
+		}
+		if !bytes.Equal(original.Signature, restored.Signature) {
+			t.Errorf("Signature mismatch: got %x, want %x", restored.Signature, original.Signature)
+		}
+		if original.SecurityFlags != restored.SecurityFlags {
+			t.Errorf("SecurityFlags mismatch: got %d, want %d", restored.SecurityFlags, original.SecurityFlags)
+		}
+		if !original.CreatedAt.Equal(restored.CreatedAt) {
+			t.Errorf("CreatedAt mismatch: got %v, want %v", restored.CreatedAt, original.CreatedAt)
+		}
+		if !mapsEqual(original.Metadata, restored.Metadata) {
+			t.Errorf("Metadata mismatch: got %v, want %v", restored.Metadata, original.Metadata)
+		}
+		if !mapsEqual(original.TelemetryContext, restored.TelemetryContext) {
+			t.Errorf("TelemetryContext mismatch: got %v, want %v", restored.TelemetryContext, original.TelemetryContext)
+		}
+	})
+
+	t.Run("UnmarshalInvalidData", func(t *testing.T) {
+		invalidData := []byte("this is not a valid gob stream")
+		e := &Envelope{}
+		err := e.UnmarshalBinary(invalidData)
+		if err == nil {
+			t.Error("UnmarshalBinary() with invalid data should have returned an error, but got nil")
+		}
+	})
+}
+
+// mapsEqual checks if two string maps are equal.
+func mapsEqual(a, b map[string]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if w, ok := b[k]; !ok || v != w {
+			return false
+		}
+	}
+	return true
+}
+
+// clone creates a deep copy of the Envelope for testing.
+func (e *Envelope) clone() *Envelope {
+	clone := &Envelope{
+		Version:       e.Version,
+		ID:            bytes.Clone(e.ID),
+		Data:          bytes.Clone(e.Data),
+		SecurityFlags: e.SecurityFlags,
+		Signature:     bytes.Clone(e.Signature),
+		CreatedAt:     e.CreatedAt,
+		ReceivedAt:    e.ReceivedAt,
+	}
+	if e.Metadata != nil {
+		clone.Metadata = make(map[string]string, len(e.Metadata))
+		for k, v := range e.Metadata {
+			clone.Metadata[k] = v
+		}
+	}
+	if e.TelemetryContext != nil {
+		clone.TelemetryContext = make(map[string]string, len(e.TelemetryContext))
+		for k, v := range e.TelemetryContext {
+			clone.TelemetryContext[k] = v
+		}
+	}
+	return clone
+}
