@@ -42,7 +42,7 @@ func main() {
 
     // Create a new envelope with some data
     originalData := []byte("this is a secret message")
-    e := envelope.New(originalData, 0)
+    e := envelope.New(originalData)
     e.ID = []byte("message-123")
     e.Metadata["sender"] = "alice"
 

@@ -62,13 +62,12 @@ type Envelope struct {
 
 // New creates a new envelope with the given data and security flags.
 // It initializes the envelope with the current version, timestamps, and empty maps.
-func New(data []byte, flags SecurityFlags) *Envelope {
+func New(data []byte) *Envelope {
 	return &Envelope{
 		Version:          CurrentVersion,
 		Data:             data,
 		Metadata:         make(map[string]string),
 		TelemetryContext: make(map[string]string),
-		SecurityFlags:    flags,
 		CreatedAt:        time.Now().UTC(),
 	}
 }

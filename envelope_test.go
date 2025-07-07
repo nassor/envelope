@@ -13,7 +13,7 @@ func TestEnvelope_Sign(t *testing.T) {
 	rand.Read(signingKey)
 
 	t.Run("Sign", func(t *testing.T) {
-		e := New([]byte("test data"), 0)
+		e := New([]byte("test data"))
 		err := e.Sign(signingKey)
 		if err != nil {
 			t.Errorf("Sign() error = %v, wantErr nil", err)
@@ -156,7 +156,7 @@ func TestEnvelope_EncryptDecrypt(t *testing.T) {
 	originalData := []byte("very secret data")
 
 	t.Run("Encrypt and Decrypt", func(t *testing.T) {
-		e := New(bytes.Clone(originalData), 0)
+		e := New(bytes.Clone(originalData))
 
 		err := e.Encrypt(encryptionKey)
 		if err != nil {
@@ -179,7 +179,7 @@ func TestEnvelope_EncryptDecrypt(t *testing.T) {
 	})
 
 	t.Run("DecryptNotEncrypted", func(t *testing.T) {
-		e := New(bytes.Clone(originalData), 0)
+		e := New(bytes.Clone(originalData))
 		err := e.Decrypt(encryptionKey)
 		if err != nil {
 			t.Errorf("Decrypt() error = %v, wantErr nil", err)
@@ -190,7 +190,7 @@ func TestEnvelope_EncryptDecrypt(t *testing.T) {
 	})
 
 	t.Run("DecryptTooShort", func(t *testing.T) {
-		e := New([]byte("short"), 0)
+		e := New([]byte("short"))
 		e.SecurityFlags |= FlagEncrypted // Manually set for this test case
 		err := e.Decrypt(encryptionKey)
 		if !errors.Is(err, ErrCiphertextTooShort) {
@@ -199,7 +199,7 @@ func TestEnvelope_EncryptDecrypt(t *testing.T) {
 	})
 
 	t.Run("DecryptInvalidNonce", func(t *testing.T) {
-		e := New(make([]byte, 24), 0)    // AES-GCM nonce size is 12, so this is enough
+		e := New(make([]byte, 24))       // AES-GCM nonce size is 12, so this is enough
 		e.SecurityFlags |= FlagEncrypted // Manually set for this test case
 		err := e.Decrypt(encryptionKey)
 		if err == nil {
@@ -219,7 +219,7 @@ func TestEnvelope_EncryptDecrypt(t *testing.T) {
 			t.Fatalf("Failed to generate random data: %v", err)
 		}
 
-		e := New(bytes.Clone(originalData), 0)
+		e := New(bytes.Clone(originalData))
 
 		err = e.Encrypt(encryptionKey)
 		if err != nil {
@@ -248,7 +248,7 @@ func TestCombined(t *testing.T) {
 	rand.Read(encryptionKey)
 	originalData := []byte("very secret data")
 
-	e := New(bytes.Clone(originalData), 0)
+	e := New(bytes.Clone(originalData))
 
 	err := e.Encrypt(encryptionKey)
 	if err != nil {
@@ -291,7 +291,7 @@ func TestSignatureAndEncryption(t *testing.T) {
 	rand.Read(encryptionKey)
 	originalData := []byte("very secret data")
 
-	e := New(bytes.Clone(originalData), 0)
+	e := New(bytes.Clone(originalData))
 
 	// Encrypt first, then sign (so signature covers encrypted data)
 	err := e.Encrypt(encryptionKey)
@@ -349,7 +349,7 @@ func TestErrorCases(t *testing.T) {
 		rand.Reader = errorReader{}
 		defer func() { rand.Reader = originalRandReader }()
 
-		e := New([]byte("test"), 0)
+		e := New([]byte("test"))
 		err := e.Encrypt(encryptionKey)
 		if err == nil {
 			t.Error("Encrypt() did not return error on rand.Reader failure")
@@ -363,7 +363,7 @@ func TestErrorCases(t *testing.T) {
 		signingKey := make([]byte, 32)
 		rand.Read(signingKey)
 
-		e := New([]byte("test"), 0)
+		e := New([]byte("test"))
 		// Use an invalid key length to trigger an error in HMAC
 		invalidKey := []byte("too short")
 
@@ -387,7 +387,7 @@ func TestEnvelope_MarshalUnmarshalBinary(t *testing.T) {
 		encryptionKey := make([]byte, 32)
 		rand.Read(encryptionKey)
 
-		original := New([]byte("some important data"), 0)
+		original := New([]byte("some important data"))
 		original.ID = []byte("test-id-123")
 		original.Metadata = map[string]string{"origin": "test", "user": "alice"}
 		original.TelemetryContext = map[string]string{"traceId": "abc-def"}
