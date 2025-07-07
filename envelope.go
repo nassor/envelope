@@ -107,6 +107,12 @@ func (e *Envelope) computeHMAC(key []byte) ([]byte, error) {
 		return nil, err
 	}
 
+	// Add SecurityFlags to the HMAC to prevent tampering
+	_, err = h.Write([]byte{byte(e.SecurityFlags)})
+	if err != nil {
+		return nil, err
+	}
+
 	// Write ID and Data
 	_, err = h.Write(e.ID)
 	if err != nil {
@@ -171,26 +177,29 @@ func (e *Envelope) computeHMAC(key []byte) ([]byte, error) {
 }
 
 // Sign generates a signature for the envelope's data and sets the FlagSigned flag.
-func (e *Envelope) Sign(key []byte) error {
-	var err error
-	e.Signature, err = e.computeHMAC(key)
+func (e *Envelope) Sign(signingKey []byte) error {
+	// Set the flag before computing the HMAC, as the flag is part of the signature.
+	e.SecurityFlags |= FlagSigned
+	sig, err := e.computeHMAC(signingKey)
 	if err != nil {
+		// If signing fails, revert the flag.
+		e.SecurityFlags &^= FlagSigned
 		return err
 	}
-	e.SecurityFlags |= FlagSigned
+	e.Signature = sig
 	return nil
 }
 
 // Verify checks the signature of the envelope's data if the FlagSigned is set.
 // If the flag is not set, it verifies that the signature is nil.
-func (e *Envelope) Verify(key []byte) error {
+func (e *Envelope) Verify(signingKey []byte) error {
 	if e.SecurityFlags&FlagSigned == 0 {
 		if len(e.Signature) == 0 {
 			return nil
 		}
 		return ErrEnvelopeHasBeenTampered
 	}
-	expectedSignature, err := e.computeHMAC(key)
+	expectedSignature, err := e.computeHMAC(signingKey)
 	if err != nil {
 		return err
 	}
@@ -201,33 +210,40 @@ func (e *Envelope) Verify(key []byte) error {
 }
 
 // Encrypt encrypts the envelope's data using AES-GCM and sets the FlagEncrypted flag.
-func (e *Envelope) Encrypt(key []byte) error {
-	c, err := aes.NewCipher(key)
+func (e *Envelope) Encrypt(encryptionKey []byte) error {
+	// Set the flag before encryption.
+	e.SecurityFlags |= FlagEncrypted
+	c, err := aes.NewCipher(encryptionKey)
 	if err != nil {
+		// If encryption fails, revert the flag.
+		e.SecurityFlags &^= FlagEncrypted
 		return err
 	}
 
 	gcm, err := cipher.NewGCM(c)
 	if err != nil {
+		// If GCM setup fails, revert the flag.
+		e.SecurityFlags &^= FlagEncrypted
 		return err
 	}
 
 	nonce := make([]byte, gcm.NonceSize())
 	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
+		// If nonce generation fails, revert the flag.
+		e.SecurityFlags &^= FlagEncrypted
 		return err
 	}
 
 	e.Data = gcm.Seal(nonce, nonce, e.Data, nil)
-	e.SecurityFlags |= FlagEncrypted
 	return nil
 }
 
 // Decrypt decrypts the envelope's data using AES-GCM if the FlagEncrypted is set.
-func (e *Envelope) Decrypt(key []byte) error {
+func (e *Envelope) Decrypt(encryptionKey []byte) error {
 	if e.SecurityFlags&FlagEncrypted == 0 {
 		return nil
 	}
-	c, err := aes.NewCipher(key)
+	c, err := aes.NewCipher(encryptionKey)
 	if err != nil {
 		return err
 	}

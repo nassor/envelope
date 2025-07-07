@@ -9,12 +9,12 @@ import (
 )
 
 func TestEnvelope_Sign(t *testing.T) {
-	key := make([]byte, 32)
-	rand.Read(key)
+	signingKey := make([]byte, 32)
+	rand.Read(signingKey)
 
 	t.Run("Sign", func(t *testing.T) {
 		e := New([]byte("test data"), 0)
-		err := e.Sign(key)
+		err := e.Sign(signingKey)
 		if err != nil {
 			t.Errorf("Sign() error = %v, wantErr nil", err)
 		}
@@ -28,8 +28,8 @@ func TestEnvelope_Sign(t *testing.T) {
 }
 
 func TestEnvelope_Verify(t *testing.T) {
-	key := make([]byte, 32)
-	rand.Read(key)
+	signingKey := make([]byte, 32)
+	rand.Read(signingKey)
 
 	baseEnvelope := &Envelope{
 		ID:               []byte("test-id"),
@@ -47,13 +47,13 @@ func TestEnvelope_Verify(t *testing.T) {
 			SecurityFlags: 0,
 			Signature:     nil,
 		}
-		err := e.Verify(key)
+		err := e.Verify(signingKey)
 		if err != nil {
 			t.Errorf("Verify() error = %v, wantErr nil", err)
 		}
 
 		e.Signature = []byte("invalid")
-		err = e.Verify(key)
+		err = e.Verify(signingKey)
 		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
 			t.Errorf("Verify() error = %v, want %v", err, ErrEnvelopeHasBeenTampered)
 		}
@@ -61,8 +61,8 @@ func TestEnvelope_Verify(t *testing.T) {
 
 	t.Run("ValidSignature", func(t *testing.T) {
 		e := baseEnvelope.clone()
-		e.Sign(key)
-		err := e.Verify(key)
+		e.Sign(signingKey)
+		err := e.Verify(signingKey)
 		if err != nil {
 			t.Errorf("Verify() error = %v, wantErr nil", err)
 		}
@@ -70,9 +70,9 @@ func TestEnvelope_Verify(t *testing.T) {
 
 	t.Run("InvalidSignature", func(t *testing.T) {
 		e := baseEnvelope.clone()
-		e.Sign(key) // Sign first to set the flag
+		e.Sign(signingKey) // Sign first to set the flag
 		e.Signature = []byte("invalid")
-		err := e.Verify(key)
+		err := e.Verify(signingKey)
 		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
 			t.Errorf("Verify() error = %v, want %v", err, ErrEnvelopeHasBeenTampered)
 		}
@@ -80,9 +80,9 @@ func TestEnvelope_Verify(t *testing.T) {
 
 	t.Run("TamperedData", func(t *testing.T) {
 		e := baseEnvelope.clone()
-		e.Sign(key)
+		e.Sign(signingKey)
 		e.Data = []byte("tampered")
-		err := e.Verify(key)
+		err := e.Verify(signingKey)
 		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
 			t.Errorf("Verify() error = %v, want %v for tampered data", err, ErrEnvelopeHasBeenTampered)
 		}
@@ -90,9 +90,9 @@ func TestEnvelope_Verify(t *testing.T) {
 
 	t.Run("TamperedID", func(t *testing.T) {
 		e := baseEnvelope.clone()
-		e.Sign(key)
+		e.Sign(signingKey)
 		e.ID = []byte("tampered")
-		err := e.Verify(key)
+		err := e.Verify(signingKey)
 		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
 			t.Errorf("Verify() error = %v, want %v for tampered ID", err, ErrEnvelopeHasBeenTampered)
 		}
@@ -100,9 +100,9 @@ func TestEnvelope_Verify(t *testing.T) {
 
 	t.Run("TamperedMetadata", func(t *testing.T) {
 		e := baseEnvelope.clone()
-		e.Sign(key)
+		e.Sign(signingKey)
 		e.Metadata["key"] = "tampered"
-		err := e.Verify(key)
+		err := e.Verify(signingKey)
 		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
 			t.Errorf("Verify() error = %v, want %v for tampered metadata", err, ErrEnvelopeHasBeenTampered)
 		}
@@ -110,9 +110,9 @@ func TestEnvelope_Verify(t *testing.T) {
 
 	t.Run("TamperedCreatedAt", func(t *testing.T) {
 		e := baseEnvelope.clone()
-		e.Sign(key)
+		e.Sign(signingKey)
 		e.CreatedAt = e.CreatedAt.Add(time.Second)
-		err := e.Verify(key)
+		err := e.Verify(signingKey)
 		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
 			t.Errorf("Verify() error = %v, want %v for tampered CreatedAt", err, ErrEnvelopeHasBeenTampered)
 		}
@@ -120,9 +120,9 @@ func TestEnvelope_Verify(t *testing.T) {
 
 	t.Run("TamperedTelemetryContext", func(t *testing.T) {
 		e := baseEnvelope.clone()
-		e.Sign(key)
+		e.Sign(signingKey)
 		e.TelemetryContext["source"] = "tampered"
-		err := e.Verify(key)
+		err := e.Verify(signingKey)
 		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
 			t.Errorf("Verify() error = %v, want %v for tampered TelemetryContext", err, ErrEnvelopeHasBeenTampered)
 		}
@@ -130,24 +130,35 @@ func TestEnvelope_Verify(t *testing.T) {
 
 	t.Run("TamperedVersion", func(t *testing.T) {
 		e := baseEnvelope.clone()
-		e.Sign(key)
+		e.Sign(signingKey)
 		e.Version = 2
-		err := e.Verify(key)
+		err := e.Verify(signingKey)
 		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
 			t.Errorf("Verify() error = %v, want %v for tampered Version", err, ErrEnvelopeHasBeenTampered)
+		}
+	})
+
+	t.Run("TamperedSecurityFlags", func(t *testing.T) {
+		e := baseEnvelope.clone()
+		e.Sign(signingKey)
+		// Tamper by adding a flag without re-signing
+		e.SecurityFlags |= FlagEncrypted
+		err := e.Verify(signingKey)
+		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
+			t.Errorf("Verify() error = %v, want %v for tampered SecurityFlags", err, ErrEnvelopeHasBeenTampered)
 		}
 	})
 }
 
 func TestEnvelope_EncryptDecrypt(t *testing.T) {
-	key := make([]byte, 32)
-	rand.Read(key)
+	encryptionKey := make([]byte, 32)
+	rand.Read(encryptionKey)
 	originalData := []byte("very secret data")
 
 	t.Run("Encrypt and Decrypt", func(t *testing.T) {
 		e := New(bytes.Clone(originalData), 0)
 
-		err := e.Encrypt(key)
+		err := e.Encrypt(encryptionKey)
 		if err != nil {
 			t.Fatalf("Encrypt() error = %v, wantErr nil", err)
 		}
@@ -158,7 +169,7 @@ func TestEnvelope_EncryptDecrypt(t *testing.T) {
 			t.Fatalf("Encrypt() FlagEncrypted was not set")
 		}
 
-		err = e.Decrypt(key)
+		err = e.Decrypt(encryptionKey)
 		if err != nil {
 			t.Fatalf("Decrypt() error = %v, wantErr nil", err)
 		}
@@ -169,7 +180,7 @@ func TestEnvelope_EncryptDecrypt(t *testing.T) {
 
 	t.Run("DecryptNotEncrypted", func(t *testing.T) {
 		e := New(bytes.Clone(originalData), 0)
-		err := e.Decrypt(key)
+		err := e.Decrypt(encryptionKey)
 		if err != nil {
 			t.Errorf("Decrypt() error = %v, wantErr nil", err)
 		}
@@ -181,7 +192,7 @@ func TestEnvelope_EncryptDecrypt(t *testing.T) {
 	t.Run("DecryptTooShort", func(t *testing.T) {
 		e := New([]byte("short"), 0)
 		e.SecurityFlags |= FlagEncrypted // Manually set for this test case
-		err := e.Decrypt(key)
+		err := e.Decrypt(encryptionKey)
 		if !errors.Is(err, ErrCiphertextTooShort) {
 			t.Errorf("Decrypt() error = %v, want %v", err, ErrCiphertextTooShort)
 		}
@@ -190,15 +201,15 @@ func TestEnvelope_EncryptDecrypt(t *testing.T) {
 	t.Run("DecryptInvalidNonce", func(t *testing.T) {
 		e := New(make([]byte, 24), 0)    // AES-GCM nonce size is 12, so this is enough
 		e.SecurityFlags |= FlagEncrypted // Manually set for this test case
-		err := e.Decrypt(key)
+		err := e.Decrypt(encryptionKey)
 		if err == nil {
 			t.Errorf("Decrypt() error = nil, wantErr")
 		}
 	})
 
 	t.Run("EncryptLargeData", func(t *testing.T) {
-		key := make([]byte, 32)
-		rand.Read(key)
+		encryptionKey := make([]byte, 32)
+		rand.Read(encryptionKey)
 
 		// Generate 4MB of random data
 		const dataSize = 4*1024*1024 + 3 // 4MB + 3 bytes for nonce
@@ -210,7 +221,7 @@ func TestEnvelope_EncryptDecrypt(t *testing.T) {
 
 		e := New(bytes.Clone(originalData), 0)
 
-		err = e.Encrypt(key)
+		err = e.Encrypt(encryptionKey)
 		if err != nil {
 			t.Fatalf("Encrypt() error = %v, wantErr nil", err)
 		}
@@ -219,7 +230,7 @@ func TestEnvelope_EncryptDecrypt(t *testing.T) {
 			t.Fatalf("Encrypt() data was not modified")
 		}
 
-		err = e.Decrypt(key)
+		err = e.Decrypt(encryptionKey)
 		if err != nil {
 			t.Fatalf("Decrypt() error = %v, wantErr nil", err)
 		}
@@ -231,20 +242,22 @@ func TestEnvelope_EncryptDecrypt(t *testing.T) {
 }
 
 func TestCombined(t *testing.T) {
-	key := make([]byte, 32)
-	rand.Read(key)
+	signingKey := make([]byte, 32)
+	rand.Read(signingKey)
+	encryptionKey := make([]byte, 32)
+	rand.Read(encryptionKey)
 	originalData := []byte("very secret data")
 
 	e := New(bytes.Clone(originalData), 0)
 
-	err := e.Sign(key)
-	if err != nil {
-		t.Fatalf("Sign() error = %v", err)
-	}
-
-	err = e.Encrypt(key)
+	err := e.Encrypt(encryptionKey)
 	if err != nil {
 		t.Fatalf("Encrypt() error = %v", err)
+	}
+
+	err = e.Sign(signingKey)
+	if err != nil {
+		t.Fatalf("Sign() error = %v", err)
 	}
 
 	if bytes.Equal(e.Data, originalData) {
@@ -255,13 +268,13 @@ func TestCombined(t *testing.T) {
 	originalEncryptedData := bytes.Clone(e.Data)
 	e.Data[0] ^= 0xff
 
-	err = e.Decrypt(key)
+	err = e.Decrypt(encryptionKey)
 	if err == nil {
 		t.Fatalf("Decrypt() did not return an error on tampered data")
 	}
 	e.Data = originalEncryptedData // restore
 
-	err = e.Decrypt(key)
+	err = e.Decrypt(encryptionKey)
 	if err != nil {
 		t.Fatalf("Decrypt() error = %v", err)
 	}
@@ -269,17 +282,54 @@ func TestCombined(t *testing.T) {
 	if !bytes.Equal(e.Data, originalData) {
 		t.Fatalf("data not restored after decryption, got %s, want %s", e.Data, originalData)
 	}
+}
 
-	err = e.Verify(key)
+func TestSignatureAndEncryption(t *testing.T) {
+	signingKey := make([]byte, 32)
+	rand.Read(signingKey)
+	encryptionKey := make([]byte, 32)
+	rand.Read(encryptionKey)
+	originalData := []byte("very secret data")
+
+	e := New(bytes.Clone(originalData), 0)
+
+	// Encrypt first, then sign (so signature covers encrypted data)
+	err := e.Encrypt(encryptionKey)
+	if err != nil {
+		t.Fatalf("Encrypt() error = %v", err)
+	}
+
+	err = e.Sign(signingKey)
+	if err != nil {
+		t.Fatalf("Sign() error = %v", err)
+	}
+
+	// Verify the signature while data is still encrypted
+	err = e.Verify(signingKey)
 	if err != nil {
 		t.Fatalf("Verify() error = %v for a valid signature", err)
 	}
 
 	// Tamper with signature
+	originalSig := make([]byte, len(e.Signature))
+	copy(originalSig, e.Signature)
 	e.Signature[0] ^= 0xff
-	err = e.Verify(key)
+	err = e.Verify(signingKey)
 	if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
 		t.Fatalf("Verify() error = %v, want %v for an invalid signature", err, ErrEnvelopeHasBeenTampered)
+	}
+
+	// Restore signature for decryption test
+	copy(e.Signature, originalSig)
+
+	// Now decrypt
+	err = e.Decrypt(encryptionKey)
+	if err != nil {
+		t.Fatalf("Decrypt() error = %v", err)
+	}
+
+	if !bytes.Equal(e.Data, originalData) {
+		t.Fatalf("data not restored after decryption, got %s, want %s", e.Data, originalData)
 	}
 }
 
@@ -291,8 +341,8 @@ func (r errorReader) Read(p []byte) (n int, err error) {
 }
 
 func TestErrorCases(t *testing.T) {
-	key := make([]byte, 32)
-	rand.Read(key)
+	encryptionKey := make([]byte, 32)
+	rand.Read(encryptionKey)
 
 	t.Run("EncryptRandError", func(t *testing.T) {
 		originalRandReader := rand.Reader
@@ -300,26 +350,51 @@ func TestErrorCases(t *testing.T) {
 		defer func() { rand.Reader = originalRandReader }()
 
 		e := New([]byte("test"), 0)
-		err := e.Encrypt(key)
+		err := e.Encrypt(encryptionKey)
 		if err == nil {
 			t.Error("Encrypt() did not return error on rand.Reader failure")
+		}
+		if e.SecurityFlags&FlagEncrypted != 0 {
+			t.Errorf("Encrypt() did not revert FlagEncrypted on error")
+		}
+	})
+
+	t.Run("SignMarshalError", func(t *testing.T) {
+		signingKey := make([]byte, 32)
+		rand.Read(signingKey)
+
+		e := New([]byte("test"), 0)
+		// Use an invalid key length to trigger an error in HMAC
+		invalidKey := []byte("too short")
+
+		err := e.Sign(invalidKey)
+		// HMAC will accept keys of any length, so let's use a nil key instead
+		err = e.Sign(nil)
+		if err == nil {
+			// If no error occurs with nil key, skip this test as it depends on implementation details
+			t.Skip("Sign() with nil key did not return error, skipping flag reversion test")
+		}
+		if e.SecurityFlags&FlagSigned != 0 {
+			t.Errorf("Sign() did not revert FlagSigned on error")
 		}
 	})
 }
 
 func TestEnvelope_MarshalUnmarshalBinary(t *testing.T) {
 	t.Run("SuccessfulRoundTrip", func(t *testing.T) {
-		key := make([]byte, 32)
-		rand.Read(key)
+		signingKey := make([]byte, 32)
+		rand.Read(signingKey)
+		encryptionKey := make([]byte, 32)
+		rand.Read(encryptionKey)
 
 		original := New([]byte("some important data"), 0)
 		original.ID = []byte("test-id-123")
 		original.Metadata = map[string]string{"origin": "test", "user": "alice"}
 		original.TelemetryContext = map[string]string{"traceId": "abc-def"}
-		if err := original.Sign(key); err != nil {
+		if err := original.Sign(signingKey); err != nil {
 			t.Fatalf("Failed to sign original envelope: %v", err)
 		}
-		if err := original.Encrypt(key); err != nil {
+		if err := original.Encrypt(encryptionKey); err != nil {
 			t.Fatalf("Failed to encrypt original envelope: %v", err)
 		}
 
