@@ -1,4 +1,4 @@
-# Go Envelope
+# Envelope
 
 This project provides a secure, anti-tampering Go `Envelope` struct designed to wrap and protect data. It features optional HMAC signing and AES-GCM encryption, controlled by a simple bitmask.
 
