@@ -3,6 +3,7 @@ package envelope
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/sha256"
 	"errors"
 	"testing"
 	"time"
@@ -25,28 +26,38 @@ func TestEnvelope_Sign(t *testing.T) {
 			t.Errorf("Sign() FlagSigned was not set")
 		}
 	})
+
+	t.Run("SignWithSHA256", func(t *testing.T) {
+		e := New([]byte("test data"), WithHMACHash(sha256.New))
+		err := e.Sign(signingKey)
+		if err != nil {
+			t.Errorf("Sign() error = %v, wantErr nil", err)
+		}
+		if e.Signature == nil {
+			t.Errorf("Sign() signature is nil, want not nil")
+		}
+		if e.SecurityFlags&FlagSigned == 0 {
+			t.Errorf("Sign() FlagSigned was not set")
+		}
+	})
 }
 
 func TestEnvelope_Verify(t *testing.T) {
 	signingKey := make([]byte, 32)
 	rand.Read(signingKey)
 
-	baseEnvelope := &Envelope{
-		ID:               []byte("test-id"),
-		Data:             []byte("test data"),
-		SecurityFlags:    FlagSigned,
-		Metadata:         map[string]string{"key": "value"},
-		TelemetryContext: map[string]string{"source": "test"},
-		CreatedAt:        time.Now().UTC(),
-		Version:          CurrentVersion,
-	}
+	baseEnvelope := New([]byte("test data"))
+	baseEnvelope.ID = []byte("test-id")
+	baseEnvelope.SecurityFlags = FlagSigned
+	baseEnvelope.Metadata = map[string]string{"key": "value"}
+	baseEnvelope.TelemetryContext = map[string]string{"source": "test"}
+	baseEnvelope.CreatedAt = time.Now().UTC()
+	baseEnvelope.Version = CurrentVersion
 
 	t.Run("NotSigned", func(t *testing.T) {
-		e := &Envelope{
-			Data:          []byte("test data"),
-			SecurityFlags: 0,
-			Signature:     nil,
-		}
+		e := New([]byte("test data"))
+		e.SecurityFlags = 0
+		e.Signature = nil
 		err := e.Verify(signingKey)
 		if err != nil {
 			t.Errorf("Verify() error = %v, wantErr nil", err)
@@ -475,6 +486,7 @@ func (e *Envelope) clone() *Envelope {
 		Signature:     bytes.Clone(e.Signature),
 		CreatedAt:     e.CreatedAt,
 		ReceivedAt:    e.ReceivedAt,
+		hmacHashFunc:  e.hmacHashFunc,
 	}
 	if e.Metadata != nil {
 		clone.Metadata = make(map[string]string, len(e.Metadata))

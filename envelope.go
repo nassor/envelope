@@ -13,6 +13,8 @@ import (
 	"sort"
 	"time"
 
+	"hash"
+
 	"golang.org/x/crypto/sha3"
 )
 
@@ -38,6 +40,16 @@ const (
 	CurrentVersion = 1
 )
 
+// EnvelopeOption allows customization of Envelope creation.
+type EnvelopeOption func(*Envelope)
+
+// WithHMACHash sets the HMAC hash function for the envelope.
+func WithHMACHash(hashFunc func() hash.Hash) EnvelopeOption {
+	return func(e *Envelope) {
+		e.hmacHashFunc = hashFunc
+	}
+}
+
 // Envelope is a container for data that can be signed and/or encrypted.
 type Envelope struct {
 	// Version of the envelope format, can be used for future compatibility
@@ -58,18 +70,29 @@ type Envelope struct {
 	CreatedAt time.Time
 	// ReceivedAt is the timestamp when the envelope was received.
 	ReceivedAt time.Time
+
+	// --- Customization fields (unexported) ---
+	hmacHashFunc func() hash.Hash
 }
 
 // New creates a new envelope with the given data and security flags.
 // It initializes the envelope with the current version, timestamps, and empty maps.
-func New(data []byte) *Envelope {
-	return &Envelope{
+func New(data []byte, opts ...EnvelopeOption) *Envelope {
+	e := &Envelope{
 		Version:          CurrentVersion,
 		Data:             data,
 		Metadata:         make(map[string]string),
 		TelemetryContext: make(map[string]string),
+		SecurityFlags:    0,
 		CreatedAt:        time.Now().UTC(),
+
+		// Set defaults
+		hmacHashFunc: sha3.New384,
 	}
+	for _, opt := range opts {
+		opt(e)
+	}
+	return e
 }
 
 // MarshalBinary implements the encoding.BinaryMarshaler interface using gob.
@@ -96,8 +119,9 @@ func (e *Envelope) UnmarshalBinary(data []byte) error {
 	return dec.Decode((*envelopeAlias)(e))
 }
 
+// computeHMAC uses the selected hash function.
 func (e *Envelope) computeHMAC(key []byte) ([]byte, error) {
-	h := hmac.New(sha3.New384, key)
+	h := hmac.New(e.hmacHashFunc, key)
 
 	versionBytes := make([]byte, 2)
 	binary.BigEndian.PutUint16(versionBytes, e.Version)
