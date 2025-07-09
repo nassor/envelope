@@ -45,9 +45,12 @@ type Envelope struct {
 	CreatedAt time.Time
 	// ReceivedAt is the timestamp when the envelope was received.
 	ReceivedAt time.Time
+	// ExpiresAt is the timestamp when the envelope expires.
+	ExpiresAt time.Time
 
 	// --- Customization fields (unexported) ---
-	hmacHashFunc func() hash.Hash
+	hmacHashFunc func() hash.Hash // Hash function used for HMAC computation
+	nonceSize    int              // Size of the nonce for AES-GCM encryption
 }
 
 // New creates a new envelope with the given data and security flags.
@@ -63,6 +66,7 @@ func New(data []byte, opts ...EnvelopeOption) *Envelope {
 
 		// Set defaults
 		hmacHashFunc: sha3.New384,
+		nonceSize:    12,
 	}
 	for _, opt := range opts {
 		opt(e)

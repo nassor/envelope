@@ -38,6 +38,46 @@ func TestEnvelope_EncryptDecrypt(t *testing.T) {
 		}
 	})
 
+	t.Run("TamperAAD_ID", func(t *testing.T) {
+		e := New(bytes.Clone(originalData))
+		e.ID = []byte("test-id")
+		err := e.Encrypt(encryptionKey)
+		if err != nil {
+			t.Fatalf("Encrypt() error = %v", err)
+		}
+
+		// Tamper with the ID, which is part of the AAD
+		e.ID = []byte("tampered-id")
+
+		err = e.Decrypt(encryptionKey)
+		if err == nil {
+			t.Fatal("Decrypt() did not return an error on tampered AAD (ID)")
+		}
+		if err.Error() != "cipher: message authentication failed" {
+			t.Errorf("Decrypt() error = %v, want 'cipher: message authentication failed'", err)
+		}
+	})
+
+	t.Run("TamperAAD_Metadata", func(t *testing.T) {
+		e := New(bytes.Clone(originalData))
+		e.Metadata["key"] = "value"
+		err := e.Encrypt(encryptionKey)
+		if err != nil {
+			t.Fatalf("Encrypt() error = %v", err)
+		}
+
+		// Tamper with the Metadata, which is part of the AAD
+		e.Metadata["key"] = "tampered-value"
+
+		err = e.Decrypt(encryptionKey)
+		if err == nil {
+			t.Fatal("Decrypt() did not return an error on tampered AAD (Metadata)")
+		}
+		if err.Error() != "cipher: message authentication failed" {
+			t.Errorf("Decrypt() error = %v, want 'cipher: message authentication failed'", err)
+		}
+	})
+
 	t.Run("DecryptNotEncrypted", func(t *testing.T) {
 		e := New(bytes.Clone(originalData))
 		err := e.Decrypt(encryptionKey)
