@@ -247,7 +247,7 @@ This library does not handle key management. You are responsible for generating,
 
 When an envelope is signed, all of its fields (`ID`, `Metadata`, `ExpiresAt`, `SecurityFlags`, `Data` or `Ciphertext`) are included in the HMAC calculation. This ensures the integrity of the entire envelope.
 
-When using encryption (`FlagEncrypted`), the signature is calculated over the ciphertext, not the plaintext data. The encryption itself (AES-GCM) binds the ciphertext to the unencrypted metadata fields (`ID`, `Metadata`, `ExpiresAt`, `SecurityFlags`) by using them as Authenticated Associated Data (AAD). This prevents an attacker from detaching the ciphertext and reattaching it to a different envelope with different metadata.
+When using encryption (`FlagEncrypted`), the signature is calculated over the ciphertext, not the plaintext data. The encryption itself (AES-GCM) binds the ciphertext to the unencrypted metadata fields (`ID`, `Metadata`, `ExpiresAt`) by using them as Authenticated Associated Data (AAD). This prevents an attacker from detaching the ciphertext and reattaching it to a different envelope with different metadata.
 
 For these reasons, it is highly recommended to always use the `FlagSigned` flag, even when encrypting data, to ensure the full envelope is protected from tampering.
 

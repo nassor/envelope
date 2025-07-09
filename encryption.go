@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"sort"
+	"time"
 )
 
 // ErrCiphertextTooShort is returned when the ciphertext is too short to be valid.
@@ -100,7 +101,10 @@ func (e *Envelope) computeAAD() ([]byte, error) {
 	// For simplicity, we'll just use the ID and Metadata here.
 	var b bytes.Buffer
 
-	b.Write(e.ID)
+	_, err := b.Write(e.ID)
+	if err != nil {
+		return nil, err
+	}
 
 	// Write Metadata in a deterministic order
 	if e.Metadata != nil {
@@ -113,6 +117,10 @@ func (e *Envelope) computeAAD() ([]byte, error) {
 			b.Write([]byte(k))
 			b.Write([]byte(e.Metadata[k]))
 		}
+	}
+
+	if !e.ExpiresAt.IsZero() {
+		b.Write([]byte(e.ExpiresAt.Format(time.RFC3339)))
 	}
 
 	return b.Bytes(), nil
