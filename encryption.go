@@ -13,6 +13,16 @@ import (
 // ErrCiphertextTooShort is returned when the ciphertext is too short to be valid.
 var ErrCiphertextTooShort = errors.New("ciphertext too short")
 
+// WithNonceSize sets the nonce size for the envelope.
+func WithNonceSize(size int) EnvelopeOption {
+	return func(e *Envelope) {
+		if size <= 0 {
+			size = 12 // Default nonce size for AES-GCM
+		}
+		e.nonceSize = size
+	}
+}
+
 // Encrypt encrypts the envelope's data using AES-GCM and sets the FlagEncrypted flag.
 func (e *Envelope) Encrypt(encryptionKey []byte) error {
 	// Set the flag before encryption.
@@ -24,14 +34,14 @@ func (e *Envelope) Encrypt(encryptionKey []byte) error {
 		return err
 	}
 
-	gcm, err := cipher.NewGCM(c)
+	gcm, err := cipher.NewGCMWithNonceSize(c, e.nonceSize)
 	if err != nil {
 		// If GCM setup fails, revert the flag.
 		e.SecurityFlags &^= FlagEncrypted
 		return err
 	}
 
-	nonce := make([]byte, gcm.NonceSize())
+	nonce := make([]byte, e.nonceSize)
 	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
 		// If nonce generation fails, revert the flag.
 		e.SecurityFlags &^= FlagEncrypted
@@ -59,13 +69,12 @@ func (e *Envelope) Decrypt(encryptionKey []byte) error {
 		return err
 	}
 
-	gcm, err := cipher.NewGCM(c)
+	gcm, err := cipher.NewGCMWithNonceSize(c, e.nonceSize)
 	if err != nil {
 		return err
 	}
 
-	nonceSize := gcm.NonceSize()
-	if len(e.Data) < nonceSize {
+	if len(e.Data) < e.nonceSize {
 		return ErrCiphertextTooShort
 	}
 
@@ -74,7 +83,7 @@ func (e *Envelope) Decrypt(encryptionKey []byte) error {
 		return err
 	}
 
-	nonce, ciphertext := e.Data[:nonceSize], e.Data[nonceSize:]
+	nonce, ciphertext := e.Data[:e.nonceSize], e.Data[e.nonceSize:]
 	plaintext, err := gcm.Open(nil, nonce, ciphertext, aad)
 	if err != nil {
 		return err

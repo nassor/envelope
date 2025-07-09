@@ -173,3 +173,80 @@ func TestEncryptionErrorCases(t *testing.T) {
 		}
 	})
 }
+
+func TestWithNonceSize(t *testing.T) {
+	originalData := []byte("very secret data")
+	encryptionKey := make([]byte, 32)
+	_, err := rand.Read(encryptionKey)
+	if err != nil {
+		t.Fatalf("Failed to generate encryption key: %v", err)
+	}
+
+	t.Run("CustomNonceSize", func(t *testing.T) {
+		customNonceSize := 24
+		e := New(bytes.Clone(originalData), WithNonceSize(customNonceSize))
+
+		err := e.Encrypt(encryptionKey)
+		if err != nil {
+			t.Fatalf("Encrypt() with custom nonce size failed: %v", err)
+		}
+
+		// 16 is the GCM tag size
+		expectedLen := customNonceSize + len(originalData) + 16
+		if len(e.Data) != expectedLen {
+			t.Errorf("Encrypted data length = %d, want %d", len(e.Data), expectedLen)
+		}
+
+		err = e.Decrypt(encryptionKey)
+		if err != nil {
+			t.Fatalf("Decrypt() with custom nonce size failed: %v", err)
+		}
+
+		if !bytes.Equal(e.Data, originalData) {
+			t.Errorf("Decrypt() got %v, want %v", e.Data, originalData)
+		}
+	})
+
+	t.Run("InvalidNonceSizeDefaults", func(t *testing.T) {
+		e := New(bytes.Clone(originalData), WithNonceSize(0))
+
+		err := e.Encrypt(encryptionKey)
+		if err != nil {
+			t.Fatalf("Encrypt() with invalid nonce size failed: %v", err)
+		}
+
+		// Should default to 12
+		defaultNonceSize := 12
+		expectedLen := defaultNonceSize + len(originalData) + 16
+		if len(e.Data) != expectedLen {
+			t.Errorf("Encrypted data length = %d, want %d", len(e.Data), expectedLen)
+		}
+
+		err = e.Decrypt(encryptionKey)
+		if err != nil {
+			t.Fatalf("Decrypt() with default nonce size failed: %v", err)
+		}
+	})
+
+	t.Run("MismatchedNonceSize", func(t *testing.T) {
+		// Encrypt with default nonce size
+		e1 := New(bytes.Clone(originalData))
+		err := e1.Encrypt(encryptionKey)
+		if err != nil {
+			t.Fatalf("Encrypt() failed: %v", err)
+		}
+
+		// Attempt to decrypt with a different nonce size
+		e2 := New(nil, WithNonceSize(24))
+		e2.Data = bytes.Clone(e1.Data)
+		e2.SecurityFlags = e1.SecurityFlags
+
+		err = e2.Decrypt(encryptionKey)
+		// The error is "message authentication failed" because attempting to decrypt
+		// with the wrong nonce size leads to an incorrect parsing of the nonce
+		// and ciphertext, causing the authentication tag check to fail.
+		if err == nil || err.Error() != "cipher: message authentication failed" {
+			t.Errorf("Decrypt() with mismatched nonce size error = %v, want 'cipher: message authentication failed'", err)
+		}
+	})
+}
