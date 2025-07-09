@@ -6,10 +6,15 @@ import (
 	"errors"
 	"hash"
 	"sort"
+	"time"
 )
 
-// ErrEnvelopeHasBeenTampered is returned when the envelope's signature is invalid.
-var ErrEnvelopeHasBeenTampered = errors.New("envelope has been tampered with")
+var (
+	// ErrEnvelopeHasBeenTampered is returned when the envelope's signature is invalid.
+	ErrEnvelopeHasBeenTampered = errors.New("envelope has been tampered with")
+	// ErrEnvelopeExpired is returned when the envelope's expiration time has passed.
+	ErrEnvelopeExpired = errors.New("envelope has expired")
+)
 
 // WithHMACHash sets the HMAC hash function for the envelope.
 func WithHMACHash(hashFunc func() hash.Hash) EnvelopeOption {
@@ -127,6 +132,11 @@ func (e *Envelope) Sign(signingKey []byte) error {
 // Verify checks the signature of the envelope's data if the FlagSigned is set.
 // If the flag is not set, it verifies that the signature is nil.
 func (e *Envelope) Verify(signingKey []byte) error {
+	// check if the envelope is expired
+	if !e.ExpiresAt.IsZero() && e.ExpiresAt.Before(time.Now().UTC()) {
+		return ErrEnvelopeExpired
+	}
+
 	if e.SecurityFlags&FlagSigned == 0 {
 		if len(e.Signature) == 0 {
 			return nil

@@ -173,6 +173,19 @@ func TestEnvelope_Verify(t *testing.T) {
 			t.Fatalf("Verify() error = %v, want %v for tampered ExpiresAt", err, ErrEnvelopeHasBeenTampered)
 		}
 	})
+
+	t.Run("Expired", func(t *testing.T) {
+		e := New(testData)
+		e.ExpiresAt = time.Now().Add(-1 * time.Minute) // Expired 1 minute ago
+		if err := e.Sign(nil); err != nil {
+			t.Fatalf("Failed to sign payload: %v", err)
+		}
+
+		err := e.Verify(nil)
+		if !errors.Is(err, ErrEnvelopeExpired) {
+			t.Fatalf("Verify() error = %v, want %v", err, ErrEnvelopeExpired)
+		}
+	})
 }
 
 // errorHash is a mock hash.Hash that always returns an error on Write.
