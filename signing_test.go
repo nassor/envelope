@@ -5,6 +5,7 @@ import (
 	"errors"
 	"hash"
 	"testing"
+	"time"
 )
 
 func TestEnvelope_Sign(t *testing.T) {
@@ -66,6 +67,110 @@ func TestEnvelope_Verify(t *testing.T) {
 		err = e.Verify(nil)
 		if err == nil {
 			t.Fatal("Expected an error, but got nil")
+		}
+	})
+
+	t.Run("TamperVersion", func(t *testing.T) {
+		e := New(testData)
+		if err := e.Sign(nil); err != nil {
+			t.Fatalf("Failed to sign payload: %v", err)
+		}
+		e.Version++
+		err := e.Verify(nil)
+		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
+			t.Fatalf("Verify() error = %v, want %v for tampered Version", err, ErrEnvelopeHasBeenTampered)
+		}
+	})
+
+	t.Run("TamperSecurityFlags", func(t *testing.T) {
+		e := New(testData)
+		if err := e.Sign(nil); err != nil {
+			t.Fatalf("Failed to sign payload: %v", err)
+		}
+		e.SecurityFlags |= FlagEncrypted
+		err := e.Verify(nil)
+		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
+			t.Fatalf("Verify() error = %v, want %v for tampered SecurityFlags", err, ErrEnvelopeHasBeenTampered)
+		}
+	})
+
+	t.Run("TamperID", func(t *testing.T) {
+		e := New(testData)
+		e.ID = []byte("test-id")
+		if err := e.Sign(nil); err != nil {
+			t.Fatalf("Failed to sign payload: %v", err)
+		}
+		e.ID[0] ^= 0xff
+		err := e.Verify(nil)
+		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
+			t.Fatalf("Verify() error = %v, want %v for tampered ID", err, ErrEnvelopeHasBeenTampered)
+		}
+	})
+
+	t.Run("TamperData", func(t *testing.T) {
+		e := New(testData)
+		if err := e.Sign(nil); err != nil {
+			t.Fatalf("Failed to sign payload: %v", err)
+		}
+		e.Data[0] ^= 0xff
+		err := e.Verify(nil)
+		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
+			t.Fatalf("Verify() error = %v, want %v for tampered Data", err, ErrEnvelopeHasBeenTampered)
+		}
+	})
+
+	t.Run("TamperMetadata", func(t *testing.T) {
+		e := New(testData)
+		e.Metadata["key"] = "value"
+		if err := e.Sign(nil); err != nil {
+			t.Fatalf("Failed to sign payload: %v", err)
+		}
+		e.Metadata["key"] = "new-value"
+		err := e.Verify(nil)
+		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
+			t.Fatalf("Verify() error = %v, want %v for tampered Metadata", err, ErrEnvelopeHasBeenTampered)
+		}
+	})
+
+	t.Run("TamperTelemetryContext", func(t *testing.T) {
+		e := New(testData)
+		e.TelemetryContext["key"] = "value"
+		if err := e.Sign(nil); err != nil {
+			t.Fatalf("Failed to sign payload: %v", err)
+		}
+		e.TelemetryContext["key"] = "new-value"
+		err := e.Verify(nil)
+		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
+			t.Fatalf("Verify() error = %v, want %v for tampered TelemetryContext", err, ErrEnvelopeHasBeenTampered)
+		}
+	})
+
+	t.Run("TamperCreatedAt", func(t *testing.T) {
+		e := New(testData)
+		if err := e.Sign(nil); err != nil {
+			t.Fatalf("Failed to sign payload: %v", err)
+		}
+		e.CreatedAt = e.CreatedAt.Add(1 * time.Minute)
+		err := e.Verify(nil)
+		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
+			t.Fatalf("Verify() error = %v, want %v for tampered CreatedAt", err, ErrEnvelopeHasBeenTampered)
+		}
+	})
+
+	t.Run("TamperExpiresAt", func(t *testing.T) {
+		e := New(testData)
+		e.ExpiresAt = time.Now().Add(1 * time.Hour)
+		err := e.Sign(nil)
+		if err != nil {
+			t.Fatalf("Failed to sign payload: %v", err)
+		}
+
+		// Tamper with the ExpiresAt field.
+		e.ExpiresAt = e.ExpiresAt.Add(1 * time.Minute)
+
+		err = e.Verify(nil)
+		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
+			t.Fatalf("Verify() error = %v, want %v for tampered ExpiresAt", err, ErrEnvelopeHasBeenTampered)
 		}
 	})
 }

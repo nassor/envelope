@@ -95,6 +95,18 @@ func (e *Envelope) computeHMAC(key []byte) ([]byte, error) {
 		}
 	}
 
+	// Write ExpiresAt timestamp
+	if !e.ExpiresAt.IsZero() {
+		b, err := e.ExpiresAt.MarshalBinary()
+		if err != nil {
+			return nil, err
+		}
+		_, err = h.Write(b)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return h.Sum(nil), nil
 }
 
