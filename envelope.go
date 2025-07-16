@@ -71,6 +71,8 @@ type Envelope struct {
 	hmacHashFunc func() hash.Hash `cbor:"-"`
 	// Size of the nonce for AES-GCM encryption
 	nonceSize int `cbor:"-"`
+	// encryptTelemetry indicates whether the telemetry context should be encrypted.
+	encryptTelemetry bool `cbor:"-"`
 }
 
 // New creates a new envelope with the given data and security flags.

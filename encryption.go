@@ -25,6 +25,13 @@ func WithNonceSize(size int) Option {
 	}
 }
 
+// WithEncryptedTelemetry enables secure telemetry context in the envelope.
+func WithEncryptedTelemetry() Option {
+	return func(e *Envelope) {
+		e.encryptTelemetry = true
+	}
+}
+
 // Encrypt encrypts the envelope's data using AES-GCM and sets the FlagEncrypted flag.
 func (e *Envelope) Encrypt(encryptionKey []byte) error {
 	// Set the flag before encryption.
@@ -58,6 +65,19 @@ func (e *Envelope) Encrypt(encryptionKey []byte) error {
 	}
 
 	e.Data = gcm.Seal(nonce, nonce, e.Data, aad)
+
+	if e.encryptTelemetry {
+		for k, v := range e.TelemetryContext {
+			// Generate a new nonce for each telemetry value to avoid nonce reuse.
+			telemetryNonce := make([]byte, e.nonceSize)
+			if _, err = io.ReadFull(rand.Reader, telemetryNonce); err != nil {
+				e.SecurityFlags &^= FlagEncrypted
+				return err
+			}
+
+			e.TelemetryContext[k] = string(gcm.Seal(telemetryNonce, telemetryNonce, []byte(v), aad))
+		}
+	}
 
 	return nil
 }
@@ -95,6 +115,25 @@ func (e *Envelope) Decrypt(encryptionKey []byte) error {
 	}
 
 	e.Data = plaintext
+
+	if e.encryptTelemetry {
+		for k, v := range e.TelemetryContext {
+			encryptedValue := []byte(v)
+			if len(encryptedValue) < e.nonceSize {
+				return ErrCiphertextTooShort
+			}
+
+			// Each telemetry value has its own nonce prepended.
+			nonce, ciphertext := encryptedValue[:e.nonceSize], encryptedValue[e.nonceSize:]
+
+			decryptedValue, err := gcm.Open(nil, nonce, ciphertext, aad)
+			if err != nil {
+				return err
+			}
+
+			e.TelemetryContext[k] = string(decryptedValue)
+		}
+	}
 
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"errors"
+	"maps"
 	"testing"
 )
 
@@ -276,6 +277,110 @@ func TestWithNonceSize(t *testing.T) {
 		// and ciphertext, causing the authentication tag check to fail.
 		if err == nil || err.Error() != "cipher: message authentication failed" {
 			t.Errorf("Decrypt() with mismatched nonce size error = %v, want 'cipher: message authentication failed'", err)
+		}
+	})
+}
+
+func TestWithEncryptedTelemetry(t *testing.T) {
+	encryptionKey := make([]byte, 32)
+	if _, err := rand.Read(encryptionKey); err != nil {
+		t.Fatalf("Failed to generate encryption key: %v", err)
+	}
+
+	originalData := []byte("some data")
+	originalTelemetry := map[string]string{
+		"traceID": "abc-123",
+		"spanID":  "def-456",
+	}
+
+	t.Run("Enabled", func(t *testing.T) {
+		e := New(bytes.Clone(originalData), WithEncryptedTelemetry())
+
+		e.TelemetryContext = maps.Clone(originalTelemetry)
+
+		err := e.Encrypt(encryptionKey)
+		if err != nil {
+			t.Fatalf("Encrypt() error = %v, wantErr nil", err)
+		}
+
+		// Check that telemetry values are encrypted (i.e., not the same as original)
+		if e.TelemetryContext["traceID"] == originalTelemetry["traceID"] {
+			t.Error("TelemetryContext[traceID] was not encrypted")
+		}
+
+		if e.TelemetryContext["spanID"] == originalTelemetry["spanID"] {
+			t.Error("TelemetryContext[spanID] was not encrypted")
+		}
+
+		err = e.Decrypt(encryptionKey)
+		if err != nil {
+			t.Fatalf("Decrypt() error = %v, wantErr nil", err)
+		}
+
+		// Check that telemetry values are decrypted correctly
+		if e.TelemetryContext["traceID"] != originalTelemetry["traceID"] {
+			t.Errorf("Decrypted TelemetryContext[traceID] = %q, want %q", e.TelemetryContext["traceID"], originalTelemetry["traceID"])
+		}
+
+		if e.TelemetryContext["spanID"] != originalTelemetry["spanID"] {
+			t.Errorf("Decrypted TelemetryContext[spanID] = %q, want %q", e.TelemetryContext["spanID"], originalTelemetry["spanID"])
+		}
+	})
+
+	t.Run("Disabled", func(t *testing.T) {
+		e := New(bytes.Clone(originalData)) // No WithEncryptTelemetry option
+
+		e.TelemetryContext = maps.Clone(originalTelemetry)
+
+		err := e.Encrypt(encryptionKey)
+		if err != nil {
+			t.Fatalf("Encrypt() error = %v, wantErr nil", err)
+		}
+
+		// Check that telemetry values are NOT encrypted
+		if e.TelemetryContext["traceID"] != originalTelemetry["traceID"] {
+			t.Errorf("TelemetryContext[traceID] was encrypted, but should not have been")
+		}
+
+		if e.TelemetryContext["spanID"] != originalTelemetry["spanID"] {
+			t.Errorf("TelemetryContext[spanID] was encrypted, but should not have been")
+		}
+
+		err = e.Decrypt(encryptionKey)
+		if err != nil {
+			t.Fatalf("Decrypt() error = %v, wantErr nil", err)
+		}
+
+		// Check that telemetry values remain the same
+		if e.TelemetryContext["traceID"] != originalTelemetry["traceID"] {
+			t.Errorf("TelemetryContext[traceID] = %q, want %q", e.TelemetryContext["traceID"], originalTelemetry["traceID"])
+		}
+
+		if e.TelemetryContext["spanID"] != originalTelemetry["spanID"] {
+			t.Errorf("TelemetryContext[spanID] = %q, want %q", e.TelemetryContext["spanID"], originalTelemetry["spanID"])
+		}
+	})
+
+	t.Run("TamperedTelemetry", func(t *testing.T) {
+		e := New(bytes.Clone(originalData), WithEncryptedTelemetry())
+
+		e.TelemetryContext = maps.Clone(originalTelemetry)
+
+		err := e.Encrypt(encryptionKey)
+		if err != nil {
+			t.Fatalf("Encrypt() error = %v", err)
+		}
+
+		// Tamper with one of the encrypted telemetry values
+		e.TelemetryContext["traceID"] += "tamper"
+
+		err = e.Decrypt(encryptionKey)
+		if err == nil {
+			t.Fatal("Decrypt() did not return an error on tampered telemetry")
+		}
+
+		if err.Error() != "cipher: message authentication failed" {
+			t.Errorf("Decrypt() error = %v, want 'cipher: message authentication failed'", err)
 		}
 	})
 }

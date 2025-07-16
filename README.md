@@ -154,6 +154,27 @@ receivedEnvelope := envelope.Empty(envelope.WithNonceSize(24))
 // ... unmarshal and unseal
 ```
 
+### `WithEncryptedTelemetry`
+
+This option enables encryption for the `TelemetryContext` map. By default, this map is not encrypted. When this option is used, each value in the `TelemetryContext` map is individually encrypted using AES-GCM, similar to the main `Data` field. This is useful for protecting potentially sensitive context information while still allowing other metadata to be inspected.
+
+**Sender:**
+
+```go
+// Encrypt the TelemetryContext along with the data
+e := envelope.New(data, envelope.WithEncryptedTelemetry())
+e.TelemetryContext = map[string]string{"traceID": "trace-xyz-789"}
+// ... seal and marshal
+```
+
+**Receiver:**
+
+```go
+// The receiver must also specify the option to correctly decrypt the telemetry
+receivedEnvelope := envelope.Empty(envelope.WithEncryptedTelemetry())
+// ... unmarshal and unseal
+```
+
 ## Granular Control: Signing and Encryption
 
 While `Seal()` and `Unseal()` are convenient for the common case of applying both signing and encryption, you can also apply these protections individually. This is useful when you only need to ensure data integrity (`Sign`/`Verify`) or only need to ensure confidentiality (`Encrypt`/`Decrypt`).
