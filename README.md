@@ -25,50 +25,50 @@ This example demonstrates the simplest case: creating an envelope with data, sea
 package main
 
 import (
-	"crypto/rand"
-	"fmt"
-	"log"
-	"time"
+    "crypto/rand"
+    "fmt"
+    "log"
+    "time"
 
-	"github.com/nassor/envelope"
+    "github.com/nassor/envelope"
 )
 
 func main() {
-	// 1. Generate cryptographic keys.
-	// In a real application, use a secure key management system.
-	signingKey := make([]byte, 32)
-	encryptionKey := make([]byte, 32)
-	if _, err := rand.Read(signingKey); err != nil {
-		log.Fatalf("Failed to create signing key: %v", err)
-	}
-	if _, err := rand.Read(encryptionKey); err != nil {
-		log.Fatalf("Failed to create encryption key: %v", err)
-	}
+    // 1. Generate cryptographic keys.
+    // In a real application, use a secure key management system.
+    signingKey := make([]byte, 32)
+    encryptionKey := make([]byte, 32)
+    if _, err := rand.Read(signingKey); err != nil {
+        log.Fatalf("Failed to create signing key: %v", err)
+    }
+    if _, err := rand.Read(encryptionKey); err != nil {
+        log.Fatalf("Failed to create encryption key: %v", err)
+    }
 
-	// 2. Create a new envelope with the data to protect.
-	e := envelope.New([]byte("this is a secret message"))
+    // 2. Create a new envelope with the data to protect.
+    e := envelope.New([]byte("this is a secret message"))
 
-	// 3. Populate the envelope's other fields.
-	e.ID = []byte("message-123")
-	e.Metadata = map[string]string{"sender": "alice"}
-	e.ExpiresAt = time.Now().Add(5 * time.Minute) // Set an expiration time
-	e.SecurityFlags = envelope.FlagEncrypted | envelope.FlagSigned
+    // 3. Populate the envelope's other fields.
+    e.ID = []byte("message-123")
+    e.Metadata = map[string]string{"sender": "alice"}
+    e.ExpiresAt = time.Now().Add(5 * time.Minute) // Set an expiration time
+    e.SecurityFlags = envelope.FlagEncrypted | envelope.FlagSigned
 
-	// 4. Seal the envelope to apply encryption and signing.
-	if err := e.Seal(encryptionKey, signingKey); err != nil {
-		log.Fatalf("Failed to seal envelope: %v", err)
-	}
+    // 4. Seal the envelope to apply encryption and signing.
+    if err := e.Seal(encryptionKey, signingKey); err != nil {
+        log.Fatalf("Failed to seal envelope: %v", err)
+    }
 
-	// 5. Marshal the sealed envelope into a binary format for transmission.
-	binaryData, err := e.MarshalBinary()
-	if err != nil {
-		log.Fatalf("Failed to marshal envelope: %v", err)
-	}
+    // 5. Marshal the sealed envelope into a binary format for transmission.
+    binaryData, err := e.MarshalBinary()
+    if err != nil {
+        log.Fatalf("Failed to marshal envelope: %v", err)
+    }
 
-	fmt.Println("Envelope sealed and marshaled successfully.")
-	// In a real application, you would send the binaryData to the receiver.
-	// For this example, we'll pass it to a simulated receiver function.
-	receiveAndProcess(binaryData, signingKey, encryptionKey)
+    fmt.Println("Envelope sealed and marshaled successfully.")
+    // In a real application, you would send the binaryData to the receiver.
+    // For this example, we'll pass it to a simulated receiver function.
+    receiveAndProcess(binaryData, signingKey, encryptionKey)
 }
 ```
 
@@ -78,21 +78,21 @@ The receiver unmarshals the binary data and then unseals the envelope using the 
 
 ```go
 func receiveAndProcess(binaryData []byte, signingKey, encryptionKey []byte) {
-	// 1. Create a new, empty envelope to hold the received data.
-	receivedEnvelope := envelope.Empty()
+    // 1. Create a new, empty envelope to hold the received data.
+    receivedEnvelope := envelope.Empty()
 
-	// 2. Unmarshal the binary data into the envelope.
-	if err := receivedEnvelope.UnmarshalBinary(binaryData); err != nil {
-		log.Fatalf("Failed to unmarshal envelope: %v", err)
-	}
+    // 2. Unmarshal the binary data into the envelope.
+    if err := receivedEnvelope.UnmarshalBinary(binaryData); err != nil {
+        log.Fatalf("Failed to unmarshal envelope: %v", err)
+    }
 
-	// 3. Unseal the envelope to verify its signature and decrypt its data.
-	// This will fail if the signature is invalid or the envelope has expired.
-	if err := receivedEnvelope.Unseal(encryptionKey, signingKey); err != nil {
-		log.Fatalf("Failed to unseal envelope: %v", err)
-	}
+    // 3. Unseal the envelope to verify its signature and decrypt its data.
+    // This will fail if the signature is invalid or the envelope has expired.
+    if err := receivedEnvelope.Unseal(encryptionKey, signingKey); err != nil {
+        log.Fatalf("Failed to unseal envelope: %v", err)
+    }
 
-	fmt.Printf("Successfully unsealed. Original message: %s\n", receivedEnvelope.Data)
+    fmt.Printf("Successfully unsealed. Original message: %s\n", receivedEnvelope.Data)
 }
 ```
 
