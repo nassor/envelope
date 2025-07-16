@@ -15,8 +15,7 @@ func TestEnvelope_Sign(t *testing.T) {
 
 	t.Run("OK", func(t *testing.T) {
 		e := New(testData)
-		err := e.Sign(nil)
-		if err != nil {
+		if err := e.Sign(nil); err != nil {
 			t.Fatalf("Failed to sign payload: %v", err)
 		}
 	})
@@ -25,8 +24,7 @@ func TestEnvelope_Sign(t *testing.T) {
 		hashFunc := sha256.New
 		e := New(testData, WithHMACHash(hashFunc))
 
-		err := e.Sign(nil)
-		if err != nil {
+		if err := e.Sign(nil); err != nil {
 			t.Fatalf("Failed to sign payload: %v", err)
 		}
 	})
@@ -39,13 +37,11 @@ func TestEnvelope_Verify(t *testing.T) {
 
 	t.Run("OK", func(t *testing.T) {
 		e := New(testData)
-		err := e.Sign(nil)
-		if err != nil {
+		if err := e.Sign(nil); err != nil {
 			t.Fatalf("Failed to sign payload: %v", err)
 		}
 
-		err = e.Verify(nil)
-		if err != nil {
+		if err := e.Verify(nil); err != nil {
 			t.Fatalf("Failed to verify signature: %v", err)
 		}
 
@@ -56,16 +52,14 @@ func TestEnvelope_Verify(t *testing.T) {
 
 	t.Run("Tampered", func(t *testing.T) {
 		e := New(testData)
-		err := e.Sign(nil)
-		if err != nil {
+		if err := e.Sign(nil); err != nil {
 			t.Fatalf("Failed to sign payload: %v", err)
 		}
 
 		// Tamper with the signature.
 		e.Signature[0] ^= 0xff
 
-		err = e.Verify(nil)
-		if err == nil {
+		if err := e.Verify(nil); err == nil {
 			t.Fatal("Expected an error, but got nil")
 		}
 	})
@@ -76,8 +70,7 @@ func TestEnvelope_Verify(t *testing.T) {
 			t.Fatalf("Failed to sign payload: %v", err)
 		}
 		e.Version++
-		err := e.Verify(nil)
-		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
+		if err := e.Verify(nil); !errors.Is(err, ErrEnvelopeHasBeenTampered) {
 			t.Fatalf("Verify() error = %v, want %v for tampered Version", err, ErrEnvelopeHasBeenTampered)
 		}
 	})
@@ -87,7 +80,9 @@ func TestEnvelope_Verify(t *testing.T) {
 		if err := e.Sign(nil); err != nil {
 			t.Fatalf("Failed to sign payload: %v", err)
 		}
+
 		e.SecurityFlags |= FlagEncrypted
+
 		err := e.Verify(nil)
 		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
 			t.Fatalf("Verify() error = %v, want %v for tampered SecurityFlags", err, ErrEnvelopeHasBeenTampered)
@@ -100,9 +95,10 @@ func TestEnvelope_Verify(t *testing.T) {
 		if err := e.Sign(nil); err != nil {
 			t.Fatalf("Failed to sign payload: %v", err)
 		}
+
 		e.ID[0] ^= 0xff
-		err := e.Verify(nil)
-		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
+
+		if err := e.Verify(nil); !errors.Is(err, ErrEnvelopeHasBeenTampered) {
 			t.Fatalf("Verify() error = %v, want %v for tampered ID", err, ErrEnvelopeHasBeenTampered)
 		}
 	})
@@ -112,9 +108,10 @@ func TestEnvelope_Verify(t *testing.T) {
 		if err := e.Sign(nil); err != nil {
 			t.Fatalf("Failed to sign payload: %v", err)
 		}
+
 		e.Data[0] ^= 0xff
-		err := e.Verify(nil)
-		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
+
+		if err := e.Verify(nil); !errors.Is(err, ErrEnvelopeHasBeenTampered) {
 			t.Fatalf("Verify() error = %v, want %v for tampered Data", err, ErrEnvelopeHasBeenTampered)
 		}
 	})
@@ -138,9 +135,10 @@ func TestEnvelope_Verify(t *testing.T) {
 		if err := e.Sign(nil); err != nil {
 			t.Fatalf("Failed to sign payload: %v", err)
 		}
+
 		e.TelemetryContext["key"] = "new-value"
-		err := e.Verify(nil)
-		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
+
+		if err := e.Verify(nil); !errors.Is(err, ErrEnvelopeHasBeenTampered) {
 			t.Fatalf("Verify() error = %v, want %v for tampered TelemetryContext", err, ErrEnvelopeHasBeenTampered)
 		}
 	})
@@ -150,9 +148,10 @@ func TestEnvelope_Verify(t *testing.T) {
 		if err := e.Sign(nil); err != nil {
 			t.Fatalf("Failed to sign payload: %v", err)
 		}
+
 		e.CreatedAt = e.CreatedAt.Add(1 * time.Minute)
-		err := e.Verify(nil)
-		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
+
+		if err := e.Verify(nil); !errors.Is(err, ErrEnvelopeHasBeenTampered) {
 			t.Fatalf("Verify() error = %v, want %v for tampered CreatedAt", err, ErrEnvelopeHasBeenTampered)
 		}
 	})
@@ -160,16 +159,13 @@ func TestEnvelope_Verify(t *testing.T) {
 	t.Run("TamperExpiresAt", func(t *testing.T) {
 		e := New(testData)
 		e.ExpiresAt = time.Now().Add(1 * time.Hour)
-		err := e.Sign(nil)
-		if err != nil {
+		if err := e.Sign(nil); err != nil {
 			t.Fatalf("Failed to sign payload: %v", err)
 		}
 
-		// Tamper with the ExpiresAt field.
 		e.ExpiresAt = e.ExpiresAt.Add(1 * time.Minute)
 
-		err = e.Verify(nil)
-		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
+		if err := e.Verify(nil); !errors.Is(err, ErrEnvelopeHasBeenTampered) {
 			t.Fatalf("Verify() error = %v, want %v for tampered ExpiresAt", err, ErrEnvelopeHasBeenTampered)
 		}
 	})
@@ -181,8 +177,7 @@ func TestEnvelope_Verify(t *testing.T) {
 			t.Fatalf("Failed to sign payload: %v", err)
 		}
 
-		err := e.Verify(nil)
-		if !errors.Is(err, ErrEnvelopeExpired) {
+		if err := e.Verify(nil); !errors.Is(err, ErrEnvelopeExpired) {
 			t.Fatalf("Verify() error = %v, want %v", err, ErrEnvelopeExpired)
 		}
 	})
@@ -207,8 +202,7 @@ func TestHMACErrorCases(t *testing.T) {
 	t.Run("SignWriteError", func(t *testing.T) {
 		e := New(testData, WithHMACHash(newErrorHash))
 
-		err := e.Sign(nil)
-		if err == nil {
+		if err := e.Sign(nil); err == nil {
 			t.Fatal("Expected an error, but got nil")
 		}
 	})
