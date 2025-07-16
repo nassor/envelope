@@ -10,19 +10,24 @@ import (
 func TestEnvelope_MarshalUnmarshalBinary(t *testing.T) {
 	t.Run("SuccessfulRoundTrip", func(t *testing.T) {
 		signingKey := make([]byte, 32)
+
 		_, err := rand.Read(signingKey)
 		if err != nil {
 			t.Fatalf("Failed to generate signing key: %v", err)
 		}
+
 		encryptionKey := make([]byte, 32)
+
 		_, err = rand.Read(encryptionKey)
 		if err != nil {
 			t.Fatalf("Failed to generate encryption key: %v", err)
 		}
 
 		original := New([]byte("some important data"))
+
 		original.ID = []byte("test-id-123")
 		original.Metadata = map[string]string{"origin": "test", "user": "alice"}
+
 		original.TelemetryContext = map[string]string{"traceId": "abc-def"}
 		if err := original.Seal(encryptionKey, signingKey); err != nil {
 			t.Fatalf("Failed to seal original envelope: %v", err)
@@ -33,12 +38,14 @@ func TestEnvelope_MarshalUnmarshalBinary(t *testing.T) {
 		if err != nil {
 			t.Fatalf("MarshalBinary() error = %v, wantErr nil", err)
 		}
+
 		if len(binaryData) == 0 {
 			t.Fatal("MarshalBinary() returned empty data")
 		}
 
 		// Unmarshal into a new envelope
 		restored := Empty()
+
 		err = restored.UnmarshalBinary(binaryData)
 		if err != nil {
 			t.Fatalf("UnmarshalBinary() error = %v, wantErr nil", err)
@@ -61,6 +68,7 @@ func TestEnvelope_MarshalUnmarshalBinary(t *testing.T) {
 		if original.Version != restored.Version {
 			t.Errorf("Version mismatch: got %d, want %d", restored.Version, original.Version)
 		}
+
 		if !bytes.Equal(original.ID, restored.ID) {
 			t.Errorf("ID mismatch: got %s, want %s", restored.ID, original.ID)
 		}
@@ -68,18 +76,23 @@ func TestEnvelope_MarshalUnmarshalBinary(t *testing.T) {
 		if !bytes.Equal(restored.Data, []byte("some important data")) {
 			t.Errorf("Data mismatch after unsealing: got %s, want %s", restored.Data, "some important data")
 		}
+
 		if !bytes.Equal(original.Signature, restored.Signature) {
 			t.Errorf("Signature mismatch: got %x, want %x", restored.Signature, original.Signature)
 		}
+
 		if original.SecurityFlags != restored.SecurityFlags {
 			t.Errorf("SecurityFlags mismatch: got %d, want %d", restored.SecurityFlags, original.SecurityFlags)
 		}
+
 		if !original.CreatedAt.Equal(restored.CreatedAt) {
 			t.Errorf("CreatedAt mismatch: got %v, want %v", restored.CreatedAt, original.CreatedAt)
 		}
+
 		if !mapsEqual(original.Metadata, restored.Metadata) {
 			t.Errorf("Metadata mismatch: got %v, want %v", restored.Metadata, original.Metadata)
 		}
+
 		if !mapsEqual(original.TelemetryContext, restored.TelemetryContext) {
 			t.Errorf("TelemetryContext mismatch: got %v, want %v", restored.TelemetryContext, original.TelemetryContext)
 		}
@@ -88,6 +101,7 @@ func TestEnvelope_MarshalUnmarshalBinary(t *testing.T) {
 	t.Run("UnmarshalInvalidData", func(t *testing.T) {
 		invalidData := []byte("this is not a valid gob stream")
 		e := &Envelope{}
+
 		err := e.UnmarshalBinary(invalidData)
 		if err == nil {
 			t.Error("UnmarshalBinary() with invalid data should have returned an error, but got nil")
@@ -100,11 +114,13 @@ func mapsEqual(a, b map[string]string) bool {
 	if len(a) != len(b) {
 		return false
 	}
+
 	for k, v := range a {
 		if w, ok := b[k]; !ok || v != w {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -113,10 +129,12 @@ func TestSealUnseal(t *testing.T) {
 	if _, err := rand.Read(signingKey); err != nil {
 		t.Fatalf("Failed to generate signing key: %v", err)
 	}
+
 	encryptionKey := make([]byte, 32)
 	if _, err := rand.Read(encryptionKey); err != nil {
 		t.Fatalf("Failed to generate encryption key: %v", err)
 	}
+
 	originalData := []byte("very secret data for seal/unseal")
 
 	t.Run("Sign and Encrypt", func(t *testing.T) {
@@ -130,6 +148,7 @@ func TestSealUnseal(t *testing.T) {
 		if bytes.Equal(e.Data, originalData) {
 			t.Fatal("Data was not encrypted after Seal()")
 		}
+
 		if len(e.Signature) == 0 {
 			t.Fatal("Signature was not created after Seal()")
 		}
@@ -147,6 +166,7 @@ func TestSealUnseal(t *testing.T) {
 
 	t.Run("Tamper with Data", func(t *testing.T) {
 		e := New(bytes.Clone(originalData))
+
 		e.SecurityFlags = FlagSigned | FlagEncrypted
 		if err := e.Seal(encryptionKey, signingKey); err != nil {
 			t.Fatalf("Seal() error = %v", err)
@@ -164,6 +184,7 @@ func TestSealUnseal(t *testing.T) {
 
 	t.Run("Tamper with Signature", func(t *testing.T) {
 		e := New(bytes.Clone(originalData))
+
 		e.SecurityFlags = FlagSigned | FlagEncrypted
 		if err := e.Seal(encryptionKey, signingKey); err != nil {
 			t.Fatalf("Seal() error = %v", err)
@@ -181,6 +202,7 @@ func TestSealUnseal(t *testing.T) {
 
 	t.Run("Sign Only", func(t *testing.T) {
 		e := New(bytes.Clone(originalData))
+
 		e.SecurityFlags = FlagSigned
 
 		if err := e.Seal(nil, signingKey); err != nil {
@@ -191,6 +213,7 @@ func TestSealUnseal(t *testing.T) {
 		if !bytes.Equal(e.Data, originalData) {
 			t.Fatal("Data was encrypted in sign-only mode")
 		}
+
 		if len(e.Signature) == 0 {
 			t.Fatal("Signature was not created in sign-only mode")
 		}
@@ -203,6 +226,7 @@ func TestSealUnseal(t *testing.T) {
 
 	t.Run("Encrypt Only", func(t *testing.T) {
 		e := New(bytes.Clone(originalData))
+
 		e.SecurityFlags = FlagEncrypted
 
 		if err := e.Seal(encryptionKey, nil); err != nil {
@@ -213,6 +237,7 @@ func TestSealUnseal(t *testing.T) {
 		if bytes.Equal(e.Data, originalData) {
 			t.Fatal("Data was not encrypted in encrypt-only mode")
 		}
+
 		if len(e.Signature) != 0 {
 			t.Fatal("Signature was created in encrypt-only mode")
 		}
@@ -221,6 +246,7 @@ func TestSealUnseal(t *testing.T) {
 		if err := e.Unseal(encryptionKey, nil); err != nil {
 			t.Fatalf("Unseal() with encrypt-only failed: %v", err)
 		}
+
 		if !bytes.Equal(e.Data, originalData) {
 			t.Fatalf("data not restored after Unseal(), got %s, want %s", e.Data, originalData)
 		}

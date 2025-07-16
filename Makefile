@@ -1,7 +1,10 @@
 all: test lint
 
+build:
+	@go build ./...
+
 test:
-	go test -v ./...
+	@go test ./...
 
 lint:
-	golangci-lint run
+	@golangci-lint -c .golangci.yml run

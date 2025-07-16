@@ -1,3 +1,6 @@
+// Package envelope provides a structure for creating, signing, and encrypting data envelopes.
+// It supports CBOR serialization and includes options for security features like signing and encryption.
+// The Envelope struct contains fields for versioning, data, metadata, security flags, timestamps, and more.
 package envelope
 
 import (
@@ -25,17 +28,20 @@ var cborEnc cbor.EncMode
 
 func init() {
 	opts := cbor.CoreDetEncOptions()
+
 	opts.Time = cbor.TimeRFC3339Nano
 	opts.Sort = cbor.SortCTAP2
+
 	var err error
+
 	cborEnc, err = opts.EncMode()
 	if err != nil {
 		panic("failed to initialize CBOR encoding options: " + err.Error())
 	}
 }
 
-// EnvelopeOption allows customization of Envelope creation.
-type EnvelopeOption func(*Envelope)
+// Option allows customization of Envelope creation.
+type Option func(*Envelope)
 
 // Envelope is a container for data that can be signed and/or encrypted.
 type Envelope struct {
@@ -69,7 +75,7 @@ type Envelope struct {
 
 // New creates a new envelope with the given data and security flags.
 // It initializes the envelope with the current version, timestamps, and empty maps.
-func New(data []byte, opts ...EnvelopeOption) *Envelope {
+func New(data []byte, opts ...Option) *Envelope {
 	e := &Envelope{
 		Version:          CurrentVersion,
 		Data:             data,
@@ -85,11 +91,12 @@ func New(data []byte, opts ...EnvelopeOption) *Envelope {
 	for _, opt := range opts {
 		opt(e)
 	}
+
 	return e
 }
 
 // Empty creates a new envelope with no data.
-func Empty(opts ...EnvelopeOption) *Envelope {
+func Empty(opts ...Option) *Envelope {
 	return New(nil, opts...)
 }
 

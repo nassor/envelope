@@ -69,6 +69,7 @@ func TestEnvelope_Verify(t *testing.T) {
 		if err := e.Sign(nil); err != nil {
 			t.Fatalf("Failed to sign payload: %v", err)
 		}
+
 		e.Version++
 		if err := e.Verify(nil); !errors.Is(err, ErrEnvelopeHasBeenTampered) {
 			t.Fatalf("Verify() error = %v, want %v for tampered Version", err, ErrEnvelopeHasBeenTampered)
@@ -91,6 +92,7 @@ func TestEnvelope_Verify(t *testing.T) {
 
 	t.Run("TamperID", func(t *testing.T) {
 		e := New(testData)
+
 		e.ID = []byte("test-id")
 		if err := e.Sign(nil); err != nil {
 			t.Fatalf("Failed to sign payload: %v", err)
@@ -118,11 +120,14 @@ func TestEnvelope_Verify(t *testing.T) {
 
 	t.Run("TamperMetadata", func(t *testing.T) {
 		e := New(testData)
+
 		e.Metadata["key"] = "value"
 		if err := e.Sign(nil); err != nil {
 			t.Fatalf("Failed to sign payload: %v", err)
 		}
+
 		e.Metadata["key"] = "new-value"
+
 		err := e.Verify(nil)
 		if !errors.Is(err, ErrEnvelopeHasBeenTampered) {
 			t.Fatalf("Verify() error = %v, want %v for tampered Metadata", err, ErrEnvelopeHasBeenTampered)
@@ -131,6 +136,7 @@ func TestEnvelope_Verify(t *testing.T) {
 
 	t.Run("TamperTelemetryContext", func(t *testing.T) {
 		e := New(testData)
+
 		e.TelemetryContext["key"] = "value"
 		if err := e.Sign(nil); err != nil {
 			t.Fatalf("Failed to sign payload: %v", err)
@@ -158,6 +164,7 @@ func TestEnvelope_Verify(t *testing.T) {
 
 	t.Run("TamperExpiresAt", func(t *testing.T) {
 		e := New(testData)
+
 		e.ExpiresAt = time.Now().Add(1 * time.Hour)
 		if err := e.Sign(nil); err != nil {
 			t.Fatalf("Failed to sign payload: %v", err)
@@ -172,6 +179,7 @@ func TestEnvelope_Verify(t *testing.T) {
 
 	t.Run("Expired", func(t *testing.T) {
 		e := New(testData)
+
 		e.ExpiresAt = time.Now().Add(-1 * time.Minute) // Expired 1 minute ago
 		if err := e.Sign(nil); err != nil {
 			t.Fatalf("Failed to sign payload: %v", err)
@@ -188,7 +196,7 @@ type errorHash struct {
 	hash.Hash
 }
 
-func (e errorHash) Write(p []byte) (n int, err error) {
+func (e errorHash) Write(_ []byte) (n int, err error) {
 	return 0, errors.New("forced write error")
 }
 

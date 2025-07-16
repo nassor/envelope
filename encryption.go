@@ -15,11 +15,12 @@ import (
 var ErrCiphertextTooShort = errors.New("ciphertext too short")
 
 // WithNonceSize sets the nonce size for the envelope.
-func WithNonceSize(size int) EnvelopeOption {
+func WithNonceSize(size int) Option {
 	return func(e *Envelope) {
 		if size <= 0 {
 			size = 12 // Default nonce size for AES-GCM
 		}
+
 		e.nonceSize = size
 	}
 }
@@ -28,6 +29,7 @@ func WithNonceSize(size int) EnvelopeOption {
 func (e *Envelope) Encrypt(encryptionKey []byte) error {
 	// Set the flag before encryption.
 	e.SecurityFlags |= FlagEncrypted
+
 	c, err := aes.NewCipher(encryptionKey)
 	if err != nil {
 		// If encryption fails, revert the flag.
@@ -65,6 +67,7 @@ func (e *Envelope) Decrypt(encryptionKey []byte) error {
 	if e.SecurityFlags&FlagEncrypted == 0 {
 		return nil
 	}
+
 	c, err := aes.NewCipher(encryptionKey)
 	if err != nil {
 		return err
@@ -85,11 +88,14 @@ func (e *Envelope) Decrypt(encryptionKey []byte) error {
 	}
 
 	nonce, ciphertext := e.Data[:e.nonceSize], e.Data[e.nonceSize:]
+
 	plaintext, err := gcm.Open(nil, nonce, ciphertext, aad)
 	if err != nil {
 		return err
 	}
+
 	e.Data = plaintext
+
 	return nil
 }
 
@@ -112,7 +118,9 @@ func (e *Envelope) computeAAD() ([]byte, error) {
 		for k := range e.Metadata {
 			keys = append(keys, k)
 		}
+
 		sort.Strings(keys)
+
 		for _, k := range keys {
 			b.Write([]byte(k))
 			b.Write([]byte(e.Metadata[k]))

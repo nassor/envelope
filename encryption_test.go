@@ -9,10 +9,12 @@ import (
 
 func TestEnvelope_EncryptDecrypt(t *testing.T) {
 	encryptionKey := make([]byte, 32)
+
 	_, err := rand.Read(encryptionKey)
 	if err != nil {
 		t.Fatalf("Failed to generate encryption key: %v", err)
 	}
+
 	originalData := []byte("very secret data")
 
 	t.Run("Encrypt and Decrypt", func(t *testing.T) {
@@ -22,9 +24,11 @@ func TestEnvelope_EncryptDecrypt(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Encrypt() error = %v, wantErr nil", err)
 		}
+
 		if bytes.Equal(e.Data, originalData) {
 			t.Fatalf("Encrypt() data was not modified")
 		}
+
 		if e.SecurityFlags&FlagEncrypted == 0 {
 			t.Fatalf("Encrypt() FlagEncrypted was not set")
 		}
@@ -33,6 +37,7 @@ func TestEnvelope_EncryptDecrypt(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Decrypt() error = %v, wantErr nil", err)
 		}
+
 		if !bytes.Equal(e.Data, originalData) {
 			t.Errorf("Decrypt() got %v, want %v", e.Data, originalData)
 		}
@@ -40,7 +45,9 @@ func TestEnvelope_EncryptDecrypt(t *testing.T) {
 
 	t.Run("TamperAAD_ID", func(t *testing.T) {
 		e := New(bytes.Clone(originalData))
+
 		e.ID = []byte("test-id")
+
 		err := e.Encrypt(encryptionKey)
 		if err != nil {
 			t.Fatalf("Encrypt() error = %v", err)
@@ -53,6 +60,7 @@ func TestEnvelope_EncryptDecrypt(t *testing.T) {
 		if err == nil {
 			t.Fatal("Decrypt() did not return an error on tampered AAD (ID)")
 		}
+
 		if err.Error() != "cipher: message authentication failed" {
 			t.Errorf("Decrypt() error = %v, want 'cipher: message authentication failed'", err)
 		}
@@ -60,7 +68,9 @@ func TestEnvelope_EncryptDecrypt(t *testing.T) {
 
 	t.Run("TamperAAD_Metadata", func(t *testing.T) {
 		e := New(bytes.Clone(originalData))
+
 		e.Metadata["key"] = "value"
+
 		err := e.Encrypt(encryptionKey)
 		if err != nil {
 			t.Fatalf("Encrypt() error = %v", err)
@@ -73,6 +83,7 @@ func TestEnvelope_EncryptDecrypt(t *testing.T) {
 		if err == nil {
 			t.Fatal("Decrypt() did not return an error on tampered AAD (Metadata)")
 		}
+
 		if err.Error() != "cipher: message authentication failed" {
 			t.Errorf("Decrypt() error = %v, want 'cipher: message authentication failed'", err)
 		}
@@ -80,10 +91,12 @@ func TestEnvelope_EncryptDecrypt(t *testing.T) {
 
 	t.Run("DecryptNotEncrypted", func(t *testing.T) {
 		e := New(bytes.Clone(originalData))
+
 		err := e.Decrypt(encryptionKey)
 		if err != nil {
 			t.Errorf("Decrypt() error = %v, wantErr nil", err)
 		}
+
 		if !bytes.Equal(e.Data, originalData) {
 			t.Errorf("Decrypt() data was modified, got %v, want %v", e.Data, originalData)
 		}
@@ -91,7 +104,9 @@ func TestEnvelope_EncryptDecrypt(t *testing.T) {
 
 	t.Run("DecryptTooShort", func(t *testing.T) {
 		e := New([]byte("short"))
+
 		e.SecurityFlags |= FlagEncrypted // Manually set for this test case
+
 		err := e.Decrypt(encryptionKey)
 		if !errors.Is(err, ErrCiphertextTooShort) {
 			t.Errorf("Decrypt() error = %v, want %v", err, ErrCiphertextTooShort)
@@ -99,8 +114,10 @@ func TestEnvelope_EncryptDecrypt(t *testing.T) {
 	})
 
 	t.Run("DecryptInvalidNonce", func(t *testing.T) {
-		e := New(make([]byte, 24))       // AES-GCM nonce size is 12, so this is enough
+		e := New(make([]byte, 24)) // AES-GCM nonce size is 12, so this is enough
+
 		e.SecurityFlags |= FlagEncrypted // Manually set for this test case
+
 		err := e.Decrypt(encryptionKey)
 		if err == nil {
 			t.Errorf("Decrypt() error = nil, wantErr")
@@ -109,6 +126,7 @@ func TestEnvelope_EncryptDecrypt(t *testing.T) {
 
 	t.Run("EncryptLargeData", func(t *testing.T) {
 		encryptionKey := make([]byte, 32)
+
 		_, err := rand.Read(encryptionKey)
 		if err != nil {
 			t.Fatalf("Failed to generate encryption key: %v", err)
@@ -116,7 +134,9 @@ func TestEnvelope_EncryptDecrypt(t *testing.T) {
 
 		// Generate 4MB of random data
 		const dataSize = 4*1024*1024 + 3 // 4MB + 3 bytes for nonce
+
 		originalData := make([]byte, dataSize)
+
 		_, err = rand.Read(originalData)
 		if err != nil {
 			t.Fatalf("Failed to generate random data: %v", err)
@@ -147,12 +167,13 @@ func TestEnvelope_EncryptDecrypt(t *testing.T) {
 // Mock for testing error cases
 type errorReader struct{}
 
-func (r errorReader) Read(p []byte) (n int, err error) {
+func (r errorReader) Read(_ []byte) (n int, err error) {
 	return 0, errors.New("forced error")
 }
 
 func TestEncryptionErrorCases(t *testing.T) {
 	encryptionKey := make([]byte, 32)
+
 	_, err := rand.Read(encryptionKey)
 	if err != nil {
 		t.Fatalf("Failed to generate encryption key: %v", err)
@@ -160,14 +181,18 @@ func TestEncryptionErrorCases(t *testing.T) {
 
 	t.Run("EncryptRandError", func(t *testing.T) {
 		originalRandReader := rand.Reader
+
 		rand.Reader = errorReader{}
+
 		defer func() { rand.Reader = originalRandReader }()
 
 		e := New([]byte("test"))
+
 		err := e.Encrypt(encryptionKey)
 		if err == nil {
 			t.Error("Encrypt() did not return error on rand.Reader failure")
 		}
+
 		if e.SecurityFlags&FlagEncrypted != 0 {
 			t.Errorf("Encrypt() did not revert FlagEncrypted on error")
 		}
@@ -177,6 +202,7 @@ func TestEncryptionErrorCases(t *testing.T) {
 func TestWithNonceSize(t *testing.T) {
 	originalData := []byte("very secret data")
 	encryptionKey := make([]byte, 32)
+
 	_, err := rand.Read(encryptionKey)
 	if err != nil {
 		t.Fatalf("Failed to generate encryption key: %v", err)
@@ -217,6 +243,7 @@ func TestWithNonceSize(t *testing.T) {
 
 		// Should default to 12
 		defaultNonceSize := 12
+
 		expectedLen := defaultNonceSize + len(originalData) + 16
 		if len(e.Data) != expectedLen {
 			t.Errorf("Encrypted data length = %d, want %d", len(e.Data), expectedLen)
@@ -231,6 +258,7 @@ func TestWithNonceSize(t *testing.T) {
 	t.Run("MismatchedNonceSize", func(t *testing.T) {
 		// Encrypt with default nonce size
 		e1 := New(bytes.Clone(originalData))
+
 		err := e1.Encrypt(encryptionKey)
 		if err != nil {
 			t.Fatalf("Encrypt() failed: %v", err)
@@ -238,6 +266,7 @@ func TestWithNonceSize(t *testing.T) {
 
 		// Attempt to decrypt with a different nonce size
 		e2 := New(nil, WithNonceSize(24))
+
 		e2.Data = bytes.Clone(e1.Data)
 		e2.SecurityFlags = e1.SecurityFlags
 
