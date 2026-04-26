@@ -72,6 +72,7 @@ func TestEnvelope_MarshalUnmarshalBinary(t *testing.T) {
 		if !bytes.Equal(original.ID, restored.ID) {
 			t.Errorf("ID mismatch: got %s, want %s", restored.ID, original.ID)
 		}
+
 		// Data is compared after unsealing, so it should match the original plaintext
 		if !bytes.Equal(restored.Data, []byte("some important data")) {
 			t.Errorf("Data mismatch after unsealing: got %s, want %s", restored.Data, "some important data")
